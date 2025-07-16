@@ -45,6 +45,7 @@ public class Game
     public Direction direction = Direction.Left;
     public Guid CurrentPlayer;
     public DateTime time;
+    public List<Player> Players = [];
 }
 
 public enum Direction

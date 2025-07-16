@@ -1,0 +1,240 @@
+﻿/* Основные стили игры */
+.game-container {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Стили экрана настройки */
+.setup-screen {
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 30px;
+    background: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+    .setup-screen h2 {
+        color: #2c3e50;
+        margin-bottom: 30px;
+    }
+
+/* Стили информации об игроках */
+.players-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.player {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .player.current {
+        background: #e3f2fd;
+        border-left: 5px solid #2196F3;
+        transform: scale(1.02);
+        box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+    }
+
+    .player h3 {
+        color: #2c3e50;
+        margin-top: 0;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+    }
+
+.combo-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #ff9800;
+    color: white;
+    padding: 3px 8px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    animation: pulse 1.5s infinite;
+}
+
+/* Стили игрового поля */
+.game-board {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.player-hand {
+    margin-bottom: 30px;
+}
+
+    .player-hand h3 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+    }
+
+.cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.card {
+    width: 60px;
+    height: 90px;
+    background: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .card:active {
+        transform: translateY(0);
+    }
+
+/* Стили бонусов */
+.bonuses {
+    background: #f1f8e9;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+    border: 1px dashed #7cb342;
+}
+
+    .bonuses h3 {
+        margin-top: 0;
+        color: #33691e;
+    }
+
+/* Стили журнала игры */
+.game-log {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 10px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+    .game-log h3 {
+        margin-top: 0;
+        color: #2c3e50;
+        position: sticky;
+        top: 0;
+        background: #f5f5f5;
+        padding: 5px 0;
+    }
+
+    .game-log p {
+        margin: 8px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eee;
+        font-size: 0.9rem;
+    }
+
+/* Стили кнопок */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #2196F3;
+    color: white;
+}
+
+    .btn-primary:hover {
+        background: #0d8bf2;
+    }
+
+.btn-secondary {
+    background: #607d8b;
+    color: white;
+}
+
+    .btn-secondary:hover {
+        background: #546e7a;
+    }
+
+.btn-success {
+    background: #4caf50;
+    color: white;
+    margin: 5px;
+}
+
+    .btn-success:hover {
+        background: #3d8b40;
+    }
+
+/* Анимации */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Адаптивность */
+@media (max-width: 1000px) {
+    .game-container {
+        grid-template-columns: 1fr;
+    }
+
+    .players-info {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .players-info {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 500px) {
+    .players-info {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        width: 50px;
+        height: 75px;
+        font-size: 1.2rem;
+    }
+}

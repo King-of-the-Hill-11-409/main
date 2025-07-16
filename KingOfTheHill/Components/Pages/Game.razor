@@ -1,0 +1,287 @@
+﻿@page "/game"
+@using System.Collections.Generic
+@using System.Linq
+@rendermode InteractiveServer
+@using KingOfTheHill
+@inject IJSRuntime JSRuntime
+<InteractiveServer>
+<h1>Царь горы</h1>
+@if (game == null)
+{
+    <div class="setup-screen">
+        <h2>Начать игру</h2>
+        <button @onclick="StartGame" class="btn btn-primary">Начать игру</button>
+    </div>
+}
+else
+{
+    <div class="game-container">
+        <div class="players-info">
+            @foreach (var player in game.Players)
+            {
+                <div class="player @(player.Id == game.CurrentPlayer ? "current" : "")">
+                    <h3>Игрок @(game.Players.IndexOf(player) + 1)</h3>
+                    <p>Счет: @player.Score</p>
+                    <p>Карт в руке: @player.Deck.Count</p>
+                    @if (player.HasCombo)
+                    {
+                        <span class="combo-indicator">COMBO!</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="game-board">
+            @if (currentPlayer != null)
+            {
+                <div class="player-hand">
+                    <h3>Ваши карты:</h3>
+                    <div class="cards">
+                        @foreach (var card in currentPlayer.Deck)
+                        {
+                            <div class="card" @onclick="() => PlayCard(card)">
+                                @GetCardSymbol(card)
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="game-controls">
+                <button @onclick="EndTurn" class="btn btn-secondary">Завершить ход</button>
+            </div>
+
+            @if (showBonuses)
+            {
+                <div class="bonuses">
+                    <h3>Выберите бонус:</h3>
+                    <button @onclick="@(() => UseBonus("reveal"))" class="btn btn-success">𓂀 Показать счета</button>
+                    <button @onclick="@(() => UseBonus("match"))" class="btn btn-success">🃟 🃟 Совпадающие карты</button>
+                    <button @onclick="@(() => UseBonus("destroy"))" class="btn btn-success">✄ 🃟 Уничтожить карту</button>
+                </div>
+            }
+        </div>
+
+        <div class="game-log">
+            <h3>Журнал игры:</h3>
+            @foreach (var log in gameLog)
+            {
+                <p>@log</p>
+            }
+        </div>
+    </div>
+
+}
+</InteractiveServer>
+@code {
+    #nullable enable
+    private Player? currentPlayer;
+    private int currentPlayerIndex = 0;
+    public int maxScore;
+    private KingOfTheHill.Game? game;
+    private bool showBonuses = false;
+    private List<string> gameLog = new List<string>();
+
+    private void StartGame()
+    {
+        game = new KingOfTheHill.Game();
+        maxScore = game.MaxScore;
+
+        // Создаём игроков с явным Guid
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 1
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 2
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 3
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 4
+
+        // Раздаём карты
+        foreach (var player in game.Players)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                player.Deck.Add(CardDeck.DrawRandomCard());
+            }
+        }
+
+        // Устанавливаем первого игрока текущим
+        game.CurrentPlayer = game.Players[0].Id;
+        currentPlayer = game.Players[0];
+
+        AddToLog($"Игра началась! Ход игрока 1 (ID={game.CurrentPlayer})");
+        StateHasChanged();
+    }
+
+    private string GetCardSymbol(ICard card)
+    {
+        return card switch
+        {
+            PositiveCard pc => $"+{pc.Value}",
+            NegativeCard nc => $"-{nc.Value}",
+            BonusCard _ => "×2",
+            SpecialCard sc => sc.Value == SpecialCommand.Silence ? "∅" : "🔄",
+            _ => "?"
+        };
+    }
+
+    private void PlayCard(ICard card)
+    {
+        if (game == null || currentPlayer == null || game.CurrentPlayer != currentPlayer.Id)
+            return;
+
+        var player = game.Players.First(p => p.Id == currentPlayer.Id);
+
+        // Создаем копию карты для логов, так как оригинал будет удален
+        var cardCopy = card;
+
+        switch (card)
+        {
+            case PositiveCard pc:
+                player.Score = pc.Invoke(player);
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет +{pc.Value}. Новый счет: {player.Score}");
+                break;
+            case NegativeCard nc:
+                player.Score = nc.Invoke(player);
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет -{nc.Value}. Новый счет: {player.Score}");
+                break;
+            case BonusCard bc:
+                player.Score = bc.Invoke(player);
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет ×2. Новый счет: {player.Score}");
+                break;
+            case SpecialCard sc:
+                HandleSpecialCard(sc, player);
+                break;
+        }
+
+        // Удаляем карту из колоды игрока
+        player.Deck.Remove(card);
+        CheckForCombos(player);
+
+        if (player.Score >= game.MaxScore)
+        {
+            AddToLog($"Игрок {game.Players.IndexOf(player) + 1} побеждает со счетом {player.Score}!");
+            JSRuntime.InvokeVoidAsync("alert", $"Игрок {game.Players.IndexOf(player) + 1} побеждает!");
+            game = null;
+            return;
+        }
+
+        // Уведомляем Blazor о необходимости перерисовки
+        StateHasChanged();
+
+        if (cardCopy is not SpecialCard)
+        {
+            EndTurn();
+        }
+    }
+
+    private void HandleSpecialCard(SpecialCard card, Player player)
+    {
+        if (game == null) return;
+
+        switch (card.Value)
+        {
+            case SpecialCommand.Silence:
+                var nextPlayerIndex = GetNextPlayerIndex();
+                var nextPlayer = game.Players[nextPlayerIndex];
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} пропускает ход игрока {nextPlayerIndex + 1}");
+                break;
+            case SpecialCommand.ChangeMove:
+                game.direction = game.direction == Direction.Left ? Direction.Right : Direction.Left;
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} меняет направление хода!");
+                break;
+        }
+    }
+
+    private void CheckForCombos(Player player)
+    {
+        if (player.Deck.Count < 3) return;
+
+        var positiveSequence = player.Deck
+            .OfType<PositiveCard>()
+            .Select(c => c.Value)
+            .OrderBy(v => v)
+            .ToList();
+
+        if (positiveSequence.Contains(1) && positiveSequence.Contains(2) && positiveSequence.Contains(3))
+        {
+            player.HasCombo = true;
+            AddToLog($"Игрок {game?.Players.IndexOf(player) + 1} собрал комбо 1 уровня!");
+            showBonuses = true;
+        }
+    }
+
+    private void UseBonus(string bonusType)
+    {
+        if (game == null || currentPlayer == null) return;
+
+        showBonuses = false;
+        var player = game.Players.First(p => p.Id == currentPlayer.Id);
+        player.HasCombo = false;
+
+        switch (bonusType)
+        {
+            case "reveal":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: видит счета всех игроков");
+                break;
+            case "match":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: видит совпадающие карты");
+                break;
+            case "destroy":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: уничтожает карту противника");
+                break;
+        }
+    }
+
+    private void EndTurn()
+    {
+        if (game == null || game.Players.Count == 0) return;
+
+        // Получаем следующего игрока
+        int nextIndex = GetNextPlayerIndex();
+        var nextPlayer = game.Players[nextIndex];
+
+        // Обновляем текущего игрока в модели и UI
+        game.CurrentPlayer = nextPlayer.Id;
+        currentPlayer = nextPlayer;
+
+        // Добавляем карту следующему игроку
+        nextPlayer.Deck.Add(CardDeck.DrawRandomCard());
+
+        AddToLog($"Ход переходит к игроку {nextIndex + 1} (ID={game.CurrentPlayer})");
+        StateHasChanged(); // Принудительное обновление UI
+    }
+
+    private int GetNextPlayerIndex()
+    {
+        if (game == null || game.Players.Count == 0) return 0;
+
+        // Находим индекс текущего игрока по GUID
+        int currentIndex = game.Players.FindIndex(p => p.Id == game.CurrentPlayer);
+
+        if (currentIndex == -1)
+        {
+            // fallback (на случай ошибки)
+            Console.WriteLine("Игрок не найден! Возвращаем 0.");
+            return 0;
+        }
+
+        // Вычисляем следующего игрока с учётом направления
+        int nextIndex;
+        if (game.direction == Direction.Left)
+        {
+            nextIndex = (currentIndex + 1) % game.Players.Count;
+        }
+        else
+        {
+            nextIndex = (currentIndex - 1 + game.Players.Count) % game.Players.Count;
+        }
+
+        Console.WriteLine($"Следующий игрок: Index={nextIndex}, ID={game.Players[nextIndex].Id}");
+        return nextIndex;
+    }
+
+    private void AddToLog(string message)
+    {
+        gameLog.Insert(0, $"[{DateTime.Now:T}] {message}");
+        if (gameLog.Count > 20) gameLog.RemoveAt(gameLog.Count - 1);
+    }
+
+    }

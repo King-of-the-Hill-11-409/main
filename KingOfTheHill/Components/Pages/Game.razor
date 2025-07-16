@@ -81,6 +81,7 @@ else
     private KingOfTheHill.Game? game;
     private bool showBonuses = false;
     private List<string> gameLog = new List<string>();
+    private bool skipNext = false;
 
     private void StartGame()
     {
@@ -182,7 +183,11 @@ else
                 var nextPlayerIndex = GetNextPlayerIndex();
                 var nextPlayer = game.Players[nextPlayerIndex];
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} пропускает ход игрока {nextPlayerIndex + 1}");
+
+                // Пропускаем ход следующего игрока (skipNext = true)
+                skipNext = true;
                 break;
+
             case SpecialCommand.ChangeMove:
                 game.direction = game.direction == Direction.Left ? Direction.Right : Direction.Left;
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} меняет направление хода!");
@@ -238,15 +243,23 @@ else
         int nextIndex = GetNextPlayerIndex();
         var nextPlayer = game.Players[nextIndex];
 
-        // Обновляем текущего игрока в модели и UI
+        // Обновляем текущего игрока
         game.CurrentPlayer = nextPlayer.Id;
         currentPlayer = nextPlayer;
 
-        // Добавляем карту следующему игроку
-        nextPlayer.Deck.Add(CardDeck.DrawRandomCard());
+        // Если нужно пропустить ход, просто переходим к следующему игроку
+        if (skipNext)
+        {
+            AddToLog($"Ход игрока {nextIndex + 1} пропущен!");
+            skipNext = false;
+            EndTurn(); // Рекурсивно вызываем для перехода к следующему игроку
+            return;
+        }
 
+        // Если не пропускаем, добавляем карту
+        nextPlayer.Deck.Add(CardDeck.DrawRandomCard());
         AddToLog($"Ход переходит к игроку {nextIndex + 1} (ID={game.CurrentPlayer})");
-        StateHasChanged(); // Принудительное обновление UI
+        StateHasChanged();
     }
 
     private int GetNextPlayerIndex()

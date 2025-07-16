@@ -39,6 +39,20 @@ public class SpecialCard(SpecialCommand command)
     }
 }
 
+public class Game
+{
+    public int MaxScore = 300;
+    public Direction direction = Direction.Left;
+    public Guid CurrentPlayer;
+    public DateTime time;
+}
+
+public enum Direction
+{
+    Right,
+    Left
+}
+
 public enum SpecialCommand
 {
     Silence,

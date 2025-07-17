@@ -1,11 +1,53 @@
 namespace KingOfTheHill;
 
+public interface IGameProvider
+{
+    void DrawCard(Player player);
+    Game PassTheMove(Game game); // Возвращяет игру с измененным текущим игроком
+    Player UseCardAttachedToPlayer(ICard card, Player player); // Возвращает измененнного игрока
+    Game UseCardAttachedToGame(ICard card); // Возвращает измененную игру
+    Player EndMove(); // Удерживает ход у человека
+}
+
+public class GameProvider : IGameProvider // ToDo
+{
+    public void DrawCard(Player player)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Player EndMove()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Game PassTheMove(Game game)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Game UseCardAttachedToGame(ICard card)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Player UseCardAttachedToPlayer(ICard card, Player p)
+    {
+        throw new NotImplementedException();
+    }
+}
 
 public class Player
 {
+    public string ConnectionId = null!;
     public Guid Id = new();
+    public Guid GameId;
+    public bool isFreezed = false;
+    public bool isSkipTurn = false;
+    public string Name = null!;
     public List<ICard> Deck = [];
-    public int Score = 0;
+    public List<ICard> LastPlayedCards { get; set; } = new List<ICard>();
+    public int Score = 10;
     public bool HasCombo = false;
 }
 
@@ -45,18 +87,18 @@ public static class CardDeck
     
     public static ICard DrawRandomCard()
     {
-        double chance = random.NextDouble(); // 0.0 - 1.0
+        double chance = random.NextDouble();
         
-        if (chance < 0.8) // 80% РѕР±С‹С‡РЅС‹Рµ РєР°СЂС‚С‹
+        if (chance < 0.8)
         {
-            bool isPositive = random.Next(2) == 0; // 50/50 РїРѕР·РёС‚РёРІРЅР°СЏ/РЅРµРіР°С‚РёРІРЅР°СЏ
-            int value = random.Next(1, 11); // Р—РЅР°С‡РµРЅРёРµ 1-10
+            bool isPositive = random.Next(2) == 0;
+            int value = random.Next(1, 11); 
             
             return isPositive 
                 ? new PositiveCard(value) 
                 : new NegativeCard(value);
         }
-        else if (chance < 0.95) // 15% СЃРїРµС†РёР°Р»СЊРЅС‹Рµ РєР°СЂС‚С‹ (0.8-0.95)
+        else if (chance < 0.95) 
         {
             var command = random.Next(2) == 0 
                 ? SpecialCommand.Silence 
@@ -64,7 +106,7 @@ public static class CardDeck
                 
             return new SpecialCard(command);
         }
-        else // 5% Р±РѕРЅСѓСЃРЅС‹Рµ РєР°СЂС‚С‹ (0.95-1.0)
+        else
         {
             return new BonusCard();
         }
@@ -74,6 +116,8 @@ public static class CardDeck
 public class Game
 {
     public int MaxScore = 300;
+    public Guid GameID;
+    public bool isStarted = false;
     public Direction direction = Direction.Left;
     public Guid CurrentPlayer;
     public DateTime time;

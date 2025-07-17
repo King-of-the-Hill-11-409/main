@@ -1,19 +1,22 @@
-@page "/"
+п»ї@page "/"
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
 <link href="css/index.css" rel="stylesheet" />
-
 <div class="index-container">
-    <h1 class="index-title">Тест навигации</h1>
+    <h1 class="index-title">Р¦Р°СЂСЊ Р“РѕСЂС‹</h1>
 
-    <button @onclick="@(() => Navigation.NavigateTo("/game"))"
-            class="nav-button btn-game">
-        Переход в игру
-    </button>
+    <div class="buttons-column">
+        <button @onclick="@(() => Navigation.NavigateTo("/game"))"
+                class="nav-button btn-game">
+            <span class="button-icon">рџЋ®</span>
+            РќР°С‡Р°С‚СЊ РёРіСЂСѓ
+        </button>
 
-    <button @onclick="@(() => Navigation.NavigateTo("/rules"))"
-            class="nav-button btn-rules">
-        Переход на Rules
-    </button>
+        <button @onclick="@(() => Navigation.NavigateTo("/rules"))"
+                class="nav-button btn-rules">
+            <span class="button-icon">рџ“–</span>
+            РџСЂР°РІРёР»Р° РёРіСЂС‹
+        </button>
+    </div>
 </div>

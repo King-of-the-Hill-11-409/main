@@ -39,11 +39,19 @@ else
                     <div class="cards">
                         @foreach (var card in currentPlayer.Deck)
                         {
-                            <div class="card" @onclick="() => PlayCard(card)">
+                            <div class="card @(GetCardClass(card)) @(selectedCards.Contains(card) ? "selected" : "")"
+                                 @onclick="() => SelectCard(card)">
                                 @GetCardSymbol(card)
                             </div>
                         }
                     </div>
+                    @if (selectedCards.Count > 0)
+                    {
+                        <button @onclick="TryPlaySelectedCards" class="btn btn-primary">
+                            Сбросить @selectedCards.Count карт(@GetCardWordEnding(selectedCards.Count))
+                        </button>
+                        <button @onclick="ClearSelection" class="btn btn-secondary">Отмена</button>
+                    }
                 </div>
             }
 
@@ -70,9 +78,9 @@ else
             }
         </div>
     </div>
-
 }
 </InteractiveServer>
+
 @code {
     #nullable enable
     private Player? currentPlayer;
@@ -82,6 +90,222 @@ else
     private bool showBonuses = false;
     private List<string> gameLog = new List<string>();
     private bool skipNext = false;
+    private List<ICard> selectedCards = new List<ICard>();
+
+    private string GetCardClass(ICard card)
+    {
+        return card switch
+        {
+            PositiveCard => "positive",
+            NegativeCard => "negative",
+            BonusCard => "bonus",
+            SpecialCard => "special",
+            _ => ""
+        };
+    }
+
+    private string GetCardWordEnding(int count)
+    {
+        if (count % 10 == 1 && count % 100 != 11) return "у";
+        if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) return "ы";
+        return "";
+    }
+
+    private void SelectCard(ICard card)
+    {
+        if (game == null || currentPlayer == null || game.CurrentPlayer != currentPlayer.Id)
+            return;
+
+        if (selectedCards.Contains(card))
+        {
+            selectedCards.Remove(card);
+        }
+        else
+        {
+            // Можно выбрать только до 3 карт
+            if (selectedCards.Count < 3)
+            {
+                selectedCards.Add(card);
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedCards.Clear();
+        StateHasChanged();
+    }
+
+    private void TryPlaySelectedCards()
+    {
+        if (game == null || currentPlayer == null)
+            return;
+
+        // Если выбрана 1 карта - играем ее обычным способом
+        if (selectedCards.Count == 1)
+        {
+            PlayCard(selectedCards[0]);
+            ClearSelection();
+            return;
+        }
+
+        if (selectedCards.Count == 2)
+        {
+            AddToLog("Нельзя делать комбо из двух карт!");
+            ClearSelection();
+            return;
+        }
+
+        // Для 3 карт проверяем возможность комбо
+        if (selectedCards.Count == 3)
+        {
+            // Запрещаем комбо на специальных картах
+            if (selectedCards.Any(c => c is SpecialCard))
+            {
+                AddToLog("Нельзя делать комбо со специальными картами!");
+                ClearSelection();
+                return;
+            }
+
+            // Проверяем три одинаковые карты
+            bool allSame = CheckAllSameCards(selectedCards);
+
+            // Проверяем последовательность (1-2-3 или -1--2--3 и т.д.)
+            bool isSequence = CheckSequence(selectedCards);
+
+            if (!allSame && !isSequence)
+            {
+                AddToLog("Нельзя сделать комбо: карты должны быть либо одинаковые, либо последовательные (например, 1-2-3 или -1--2--3)");
+                ClearSelection();
+                return;
+            }
+
+            // Применяем эффект комбо
+            ApplyComboEffect(selectedCards, allSame, isSequence);
+
+            ClearSelection();
+            StateHasChanged();
+        }
+    }
+
+    private bool CheckAllSameCards(List<ICard> cards)
+    {
+        var firstCard = cards[0];
+
+        // Для бонусных карт (x2) просто проверяем тип
+        if (firstCard is BonusCard)
+        {
+            return cards.All(c => c is BonusCard);
+        }
+
+        // Для числовых карт проверяем и тип и значение
+        foreach (var card in cards)
+        {
+            if (card.GetType() != firstCard.GetType())
+                return false;
+
+            if (card is PositiveCard pc1 && firstCard is PositiveCard pc2 && pc1.Value != pc2.Value)
+                return false;
+
+            if (card is NegativeCard nc1 && firstCard is NegativeCard nc2 && nc1.Value != nc2.Value)
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool CheckSequence(List<ICard> cards)
+    {
+        // Проверяем что все карты одного типа (все положительные или все отрицательные)
+        if (cards.Any(c => c.GetType() != cards[0].GetType()))
+            return false;
+
+        // Получаем значения карт с учетом знака
+        var values = cards.Select(c =>
+            c is PositiveCard pc ? pc.Value :
+            c is NegativeCard nc ? -nc.Value :
+            0).ToList();
+
+        // Сортируем значения
+        values.Sort();
+
+        // Проверяем последовательность (разница между соседними = 1)
+        for (int i = 1; i < values.Count; i++)
+        {
+            if (values[i] - values[i - 1] != 1)
+                return false;
+        }
+
+        return true;
+    }
+
+    private void ApplyComboEffect(List<ICard> cards, bool allSame, bool isSequence)
+    {
+        int totalValue = 0;
+        string comboType = "";
+
+        if (allSame && cards[0] is BonusCard)
+        {
+            // Особый случай: комбо из трех x2 - умножаем счет на 2
+            currentPlayer.Score *= 2;
+            comboType = "комбо из трех двоек (умножение на 2)";
+        }
+        else if (allSame)
+        {
+            // Суммируем значения одинаковых карт
+            foreach (var card in cards)
+            {
+                if (card is PositiveCard pc)
+                    totalValue += pc.Value;
+                else if (card is NegativeCard nc)
+                    totalValue -= nc.Value;
+            }
+            currentPlayer.Score += totalValue;
+            comboType = $"три {Math.Abs(totalValue / 3)}{(totalValue > 0 ? "+" : "-")}";
+        }
+        else if (isSequence)
+        {
+            // Для последовательности суммируем значения
+            foreach (var card in cards)
+            {
+                if (card is PositiveCard pc)
+                    totalValue += pc.Value;
+                else if (card is NegativeCard nc)
+                    totalValue -= nc.Value;
+            }
+            currentPlayer.Score += totalValue;
+
+            // Формируем описание последовательности
+            var sortedValues = cards.Select(c =>
+                c is PositiveCard pc ? pc.Value :
+                c is NegativeCard nc ? -nc.Value :
+                0).OrderBy(v => v).ToList();
+
+            comboType = $"последовательность {string.Join("-", sortedValues)}";
+        }
+
+        // Удаляем карты из колоды
+        foreach (var card in cards)
+        {
+            currentPlayer.Deck.Remove(card);
+        }
+
+        AddToLog($"Игрок {game.Players.IndexOf(currentPlayer) + 1} сделал комбо {comboType} и получил {totalValue} очков! Новый счет: {currentPlayer.Score}");
+
+        // Проверяем победу
+        if (currentPlayer.Score >= game.MaxScore)
+        {
+            AddToLog($"Игрок {game.Players.IndexOf(currentPlayer) + 1} побеждает со счетом {currentPlayer.Score}!");
+            JSRuntime.InvokeVoidAsync("alert", $"Игрок {game.Players.IndexOf(currentPlayer) + 1} побеждает!");
+            game = null;
+            return;
+        }
+
+        // Активируем бонусы
+        currentPlayer.HasCombo = true;
+        showBonuses = true;
+    }
 
     private void StartGame()
     {
@@ -130,21 +354,28 @@ else
 
         var player = game.Players.First(p => p.Id == currentPlayer.Id);
 
-        // Создаем копию карты для логов, так как оригинал будет удален
-        var cardCopy = card;
+        // Добавляем карту в историю последних сыгранных карт
+        player.LastPlayedCards.Add(card);
 
+        // Ограничиваем историю последними 3 картами
+        if (player.LastPlayedCards.Count > 3)
+        {
+            player.LastPlayedCards.RemoveAt(0);
+        }
+
+        // Применяем эффект карты
         switch (card)
         {
             case PositiveCard pc:
-                player.Score = pc.Invoke(player);
+                player.Score += pc.Value; // Изменено на прямое прибавление
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет +{pc.Value}. Новый счет: {player.Score}");
                 break;
             case NegativeCard nc:
-                player.Score = nc.Invoke(player);
+                player.Score -= nc.Value; // Изменено на прямое вычитание
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет -{nc.Value}. Новый счет: {player.Score}");
                 break;
             case BonusCard bc:
-                player.Score = bc.Invoke(player);
+                player.Score *= 2; // Изменено на прямое умножение
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет ×2. Новый счет: {player.Score}");
                 break;
             case SpecialCard sc:
@@ -154,7 +385,12 @@ else
 
         // Удаляем карту из колоды игрока
         player.Deck.Remove(card);
-        CheckForCombos(player);
+
+        // Проверяем комбо только для положительных карт
+        if (card is PositiveCard)
+        {
+            CheckForCombos(player);
+        }
 
         if (player.Score >= game.MaxScore)
         {
@@ -164,10 +400,10 @@ else
             return;
         }
 
-        // Уведомляем Blazor о необходимости перерисовки
         StateHasChanged();
 
-        if (cardCopy is not SpecialCard)
+        // Не завершаем ход если активировано комбо или если это специальная карта
+        if (card is not SpecialCard && !player.HasCombo)
         {
             EndTurn();
         }
@@ -197,19 +433,31 @@ else
 
     private void CheckForCombos(Player player)
     {
-        if (player.Deck.Count < 3) return;
-
-        var positiveSequence = player.Deck
+        // Берем последние 3 сыгранные карты
+        var lastThreeCards = player.LastPlayedCards
+            .TakeLast(3)
             .OfType<PositiveCard>()
-            .Select(c => c.Value)
-            .OrderBy(v => v)
             .ToList();
 
-        if (positiveSequence.Contains(1) && positiveSequence.Contains(2) && positiveSequence.Contains(3))
+        // Нужно ровно 3 положительные карты для комбо
+        if (lastThreeCards.Count != 3) return;
+
+        // Проверяем последовательность 1-2-3
+        var orderedValues = lastThreeCards.Select(c => c.Value).OrderBy(v => v).ToList();
+        bool isSequence = orderedValues[0] == 1 && orderedValues[1] == 2 && orderedValues[2] == 3;
+
+        // Проверяем три одинаковые карты
+        bool allSame = lastThreeCards.Select(c => c.Value).Distinct().Count() == 1;
+
+        if (isSequence || allSame)
         {
             player.HasCombo = true;
-            AddToLog($"Игрок {game?.Players.IndexOf(player) + 1} собрал комбо 1 уровня!");
+            string comboType = isSequence ? "1-2-3" : $"три {lastThreeCards[0].Value}";
+            AddToLog($"Игрок {game.Players.IndexOf(player) + 1} собрал комбо {comboType}!");
             showBonuses = true;
+
+            // Очищаем историю после комбо
+            player.LastPlayedCards.Clear();
         }
     }
 
@@ -217,9 +465,11 @@ else
     {
         if (game == null || currentPlayer == null) return;
 
-        showBonuses = false;
         var player = game.Players.First(p => p.Id == currentPlayer.Id);
+
+        showBonuses = false;
         player.HasCombo = false;
+        player.LastPlayedCards.Clear();
 
         switch (bonusType)
         {
@@ -233,6 +483,9 @@ else
                 AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: уничтожает карту противника");
                 break;
         }
+
+        // После использования бонуса передаем ход
+        EndTurn();
     }
 
     private void EndTurn()
@@ -242,6 +495,12 @@ else
         // Получаем следующего игрока
         int nextIndex = GetNextPlayerIndex();
         var nextPlayer = game.Players[nextIndex];
+
+        // Тянем новую карту только если не сбрасывали 3 карты
+        if (selectedCards.Count == 0)
+        {
+            currentPlayer.Deck.Add(CardDeck.DrawRandomCard());
+        }
 
         // Обновляем текущего игрока
         game.CurrentPlayer = nextPlayer.Id;
@@ -256,9 +515,8 @@ else
             return;
         }
 
-        // Если не пропускаем, добавляем карту
-        nextPlayer.Deck.Add(CardDeck.DrawRandomCard());
         AddToLog($"Ход переходит к игроку {nextIndex + 1} (ID={game.CurrentPlayer})");
+        ClearSelection();
         StateHasChanged();
     }
 
@@ -296,5 +554,4 @@ else
         gameLog.Insert(0, $"[{DateTime.Now:T}] {message}");
         if (gameLog.Count > 20) gameLog.RemoveAt(gameLog.Count - 1);
     }
-
-    }
+}

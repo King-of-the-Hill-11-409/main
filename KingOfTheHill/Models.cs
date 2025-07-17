@@ -3,31 +3,105 @@ namespace KingOfTheHill;
 public interface IGameProvider
 {
     void DrawCard(Player player);
-    void PassTheMove(Game game); // Возвращяет игру с измененным текущим игроком
-    void UseCardAttachedToPlayer(ICard card, Player player); // Возвращает измененнного игрока
-    void UseCardAttachedToGame(ICard card); // Возвращает измененную игру
+    void PassTheMove(Game game); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    void UseCardAttachedToPlayer(ICard card, Player player); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+    void UseCardAttachedToGame(ICard card, Game game); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
 }
 
 public class GameProvider : IGameProvider // ToDo
 {
     public void DrawCard(Player player)
     {
-        throw new NotImplementedException();
+        for (int i = player.Deck.Count; i < 6; i++)
+            player.Deck.Add(CardDeck.DrawRandomCard());
+
+        player = new Player()
+        {
+            ConnectionId = player.ConnectionId,
+            Id = player.Id,
+            GameId = player.GameId,
+            isFreezed = player.isFreezed,
+            isSkipTurn = player.isSkipTurn,
+            Name = player.Name,
+            Deck = player.Deck,
+            Score = player.Score,
+            HasCombo = player.HasCombo,
+        };
     }
 
     public void PassTheMove(Game game)
     {
-        throw new NotImplementedException();
+        int currentIndex = game.Players.FindIndex(player => player.Id == game.CurrentPlayer);
+
+        int nextIndex = game.direction switch
+        {
+            Direction.Right => (currentIndex + 1) % game.Players.Count,
+            Direction.Left => (currentIndex - 1 + game.Players.Count) % game.Players.Count,
+            _ => throw new NotImplementedException(),
+        };
+
+        game.CurrentPlayer = game.Players[nextIndex].Id;
+
+        game = new Game()
+        {
+            GameID = game.GameID,
+            direction = game.direction,
+            CurrentPlayer = game.CurrentPlayer,
+            time = game.time,
+            Players = game.Players
+        };
     }
 
-    public void UseCardAttachedToGame(ICard card)
+    public void UseCardAttachedToGame(ICard card, Game game)
     {
-        throw new NotImplementedException();
+        if (card is SpecialCard special)
+        {
+            switch (special.Value)
+            {
+                case SpecialCommand.Silence:
+                    int currentIndex = game.Players.FindIndex(player => player.Id == game.CurrentPlayer);
+                    int nextIndex = game.direction switch
+                    {
+                        Direction.Right => (currentIndex + 1) % game.Players.Count,
+                        Direction.Left => (currentIndex - 1 + game.Players.Count) % game.Players.Count,
+                        _ => throw new NotImplementedException(),
+                    };
+                    game.Players[nextIndex].isSkipTurn = true;
+                    break;
+                case SpecialCommand.ChangeMove:
+                    game.direction = game.direction == Direction.Right ? Direction.Left : Direction.Right;
+                    break;
+            }
+        }
     }
 
     public void UseCardAttachedToPlayer(ICard card, Player p)
     {
-        throw new NotImplementedException();
+        switch (card)
+        {
+            case PositiveCard positiveCard:
+                p.Score = positiveCard.Invoke(p);
+                break;
+            case NegativeCard negativeCard:
+                p.Score = negativeCard.Invoke(p);
+                break;
+            case BonusCard bonusCard:
+                p.Score = bonusCard.Invoke(p);
+                break;
+        }
+
+        p = new Player()
+        {
+            ConnectionId = p.ConnectionId,
+            Id = p.Id,
+            GameId = p.GameId,
+            isFreezed = p.isFreezed,
+            isSkipTurn = p.isSkipTurn,
+            Name = p.Name,
+            Deck = p.Deck,
+            Score = p.Score,
+            HasCombo = p.HasCombo,
+        };
     }
 }
 

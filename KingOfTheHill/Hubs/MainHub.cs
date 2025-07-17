@@ -306,7 +306,7 @@ namespace KingOfTheHill.Hubs
 
             try
             {
-                _gameProvider.UseCardAttachedToGame(card);
+                _gameProvider.UseCardAttachedToGame(card, game);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
             }
             catch (Exception ex)

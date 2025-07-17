@@ -3,10 +3,9 @@ namespace KingOfTheHill;
 public interface IGameProvider
 {
     void DrawCard(Player player);
-    Game PassTheMove(Game game); // Возвращяет игру с измененным текущим игроком
-    Player UseCardAttachedToPlayer(ICard card, Player player); // Возвращает измененнного игрока
-    Game UseCardAttachedToGame(ICard card); // Возвращает измененную игру
-    Player EndMove(); // Удерживает ход у человека
+    void PassTheMove(Game game); // Возвращяет игру с измененным текущим игроком
+    void UseCardAttachedToPlayer(ICard card, Player player); // Возвращает измененнного игрока
+    void UseCardAttachedToGame(ICard card); // Возвращает измененную игру
 }
 
 public class GameProvider : IGameProvider // ToDo
@@ -16,22 +15,17 @@ public class GameProvider : IGameProvider // ToDo
         throw new NotImplementedException();
     }
 
-    public Player EndMove()
+    public void PassTheMove(Game game)
     {
         throw new NotImplementedException();
     }
 
-    public Game PassTheMove(Game game)
+    public void UseCardAttachedToGame(ICard card)
     {
         throw new NotImplementedException();
     }
 
-    public Game UseCardAttachedToGame(ICard card)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Player UseCardAttachedToPlayer(ICard card, Player p)
+    public void UseCardAttachedToPlayer(ICard card, Player p)
     {
         throw new NotImplementedException();
     }

@@ -1,1 +1,22 @@
-@page "/"
+﻿@page "/"
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<link href="css/index.css" rel="stylesheet" />
+<div class="index-container">
+    <h1 class="index-title">Царь Горы</h1>
+
+    <div class="buttons-column">
+        <button @onclick="@(() => Navigation.NavigateTo("/game"))"
+                class="nav-button btn-game">
+            <span class="button-icon">🎮</span>
+            Начать игру
+        </button>
+
+        <button @onclick="@(() => Navigation.NavigateTo("/rules"))"
+                class="nav-button btn-rules">
+            <span class="button-icon">📖</span>
+            Правила игры
+        </button>
+    </div>
+</div>

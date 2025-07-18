@@ -1,0 +1,355 @@
+﻿/* Базовые настройки */
+:root {
+    --primary: #6c5ce7;
+    --secondary: #a29bfe;
+    --accent: #fd79a8;
+    --dark: #2d3436;
+    --light: #f5f6fa;
+    --success: #00b894;
+    --danger: #d63031;
+    --warning: #fdcb6e;
+}
+
+body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #dfe6e9 100%);
+    min-height: 100vh;
+    margin: 0;
+    font-family: 'Montserrat', 'Segoe UI', sans-serif;
+    color: var(--dark);
+    line-height: 1.6;
+}
+
+/* Контейнер правил */
+.rules-container {
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 2.5rem;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.02);
+    position: relative;
+    overflow: hidden;
+}
+
+    .rules-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 10px;
+        background: linear-gradient(90deg, #6c5ce7, #a29bfe, #fd79a8, #00b894);
+    }
+
+/* Заголовок */
+.rules-title {
+    text-align: center;
+    font-size: 2.8rem;
+    margin-bottom: 2rem;
+    color: var(--primary);
+    position: relative;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+    .rules-title::after {
+        content: '';
+        display: block;
+        width: 100px;
+        height: 5px;
+        background: var(--accent);
+        margin: 1rem auto 0;
+        border-radius: 5px;
+    }
+
+/* Секции правил */
+.rule-section {
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: var(--light);
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.03);
+    border-left: 5px solid var(--primary);
+    transition: transform 0.3s ease;
+}
+
+    .rule-section:hover {
+        transform: translateY(-5px);
+    }
+
+.section-title {
+    font-size: 1.8rem;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+    .section-title::before {
+        content: '';
+        display: inline-block;
+        width: 15px;
+        height: 15px;
+        background: var(--accent);
+        border-radius: 50%;
+    }
+
+/* Сетка карт */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.card-type {
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    border-top: 3px solid var(--primary);
+    transition: all 0.3s ease;
+}
+
+    .card-type:hover {
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-type h3 {
+        font-size: 1.3rem;
+        color: var(--primary);
+        margin-top: 0;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+.card-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 1rem;
+}
+
+.card-example {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 70px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+    .card-example:hover {
+        transform: translateY(-3px) scale(1.05);
+    }
+
+.positive {
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    color: white;
+}
+
+.negative {
+    background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+    color: white;
+}
+
+.bonus {
+    background: linear-gradient(135deg, #55efc4 0%, #00b894 100%);
+    color: black;
+}
+
+/* Стили для комбо */
+.combo-levels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.combo-level {
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .combo-level::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, #6c5ce7, #fd79a8);
+    }
+
+    .combo-level h3 {
+        font-size: 1.3rem;
+        color: var(--primary);
+        margin-top: 0;
+    }
+
+.combo-example {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.warning {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.8rem 1.2rem;
+    background: #fff9e6;
+    color: #e17055;
+    border-left: 4px solid var(--warning);
+    border-radius: 0 8px 8px 0;
+    font-weight: 600;
+}
+
+/* Стили для бонусов */
+.bonuses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.bonus {
+    padding: 2rem 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .bonus:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    }
+
+.bonus-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
+.bonus:hover .bonus-icon {
+    transform: scale(1.2) rotate(5deg);
+}
+
+.bonus h3 {
+    font-size: 1.3rem;
+    margin: 1rem 0;
+    color: var(--primary);
+}
+
+.bonus-warning {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: #ffebee;
+    color: var(--danger);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Кнопка назад */
+.back-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem 2rem;
+    background: var(--primary);
+    color: black;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 2rem auto 0;
+    box-shadow: 0 5px 15px rgba(108, 92, 231, 0.4);
+}
+
+    .back-button:hover {
+        background: var(--dark);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(45, 52, 54, 0.3);
+    }
+
+    .back-button::before {
+        content: '←';
+        margin-right: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+/* Анимации */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.rules-container {
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .rules-container {
+        padding: 1.5rem;
+        margin: 1rem;
+        border-radius: 10px;
+    }
+
+    .rules-title {
+        font-size: 2.2rem;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+    }
+
+    .cards-grid, .bonuses-grid, .combo-levels {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .rules-title {
+        font-size: 1.8rem;
+    }
+
+    .rule-section {
+        padding: 1.5rem;
+    }
+
+    .card-example {
+        width: 40px;
+        height: 60px;
+        font-size: 1rem;
+    }
+}

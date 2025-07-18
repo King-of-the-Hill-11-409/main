@@ -1,0 +1,557 @@
+﻿@page "/game"
+@using System.Collections.Generic
+@using System.Linq
+@rendermode InteractiveServer
+@using KingOfTheHill
+@inject IJSRuntime JSRuntime
+<InteractiveServer>
+<h1>Царь горы</h1>
+@if (game == null)
+{
+    <div class="setup-screen">
+        <h2>Начать игру</h2>
+        <button @onclick="StartGame" class="btn btn-primary">Начать игру</button>
+    </div>
+}
+else
+{
+    <div class="game-container">
+        <div class="players-info">
+            @foreach (var player in game.Players)
+            {
+                <div class="player @(player.Id == game.CurrentPlayer ? "current" : "")">
+                    <h3>Игрок @(game.Players.IndexOf(player) + 1)</h3>
+                    <p>Счет: @player.Score</p>
+                    <p>Карт в руке: @player.Deck.Count</p>
+                    @if (player.HasCombo)
+                    {
+                        <span class="combo-indicator">COMBO!</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="game-board">
+            @if (currentPlayer != null)
+            {
+                <div class="player-hand">
+                    <h3>Ваши карты:</h3>
+                    <div class="cards">
+                        @foreach (var card in currentPlayer.Deck)
+                        {
+                            <div class="card @(GetCardClass(card)) @(selectedCards.Contains(card) ? "selected" : "")"
+                                 @onclick="() => SelectCard(card)">
+                                @GetCardSymbol(card)
+                            </div>
+                        }
+                    </div>
+                    @if (selectedCards.Count > 0)
+                    {
+                        <button @onclick="TryPlaySelectedCards" class="btn btn-primary">
+                            Сбросить @selectedCards.Count карт(@GetCardWordEnding(selectedCards.Count))
+                        </button>
+                        <button @onclick="ClearSelection" class="btn btn-secondary">Отмена</button>
+                    }
+                </div>
+            }
+
+            <div class="game-controls">
+                <button @onclick="EndTurn" class="btn btn-secondary">Завершить ход</button>
+            </div>
+
+            @if (showBonuses)
+            {
+                <div class="bonuses">
+                    <h3>Выберите бонус:</h3>
+                    <button @onclick="@(() => UseBonus("reveal"))" class="btn btn-success">𓂀 Показать счета</button>
+                    <button @onclick="@(() => UseBonus("match"))" class="btn btn-success">🃟 🃟 Совпадающие карты</button>
+                    <button @onclick="@(() => UseBonus("destroy"))" class="btn btn-success">✄ 🃟 Уничтожить карту</button>
+                </div>
+            }
+        </div>
+
+        <div class="game-log">
+            <h3>Журнал игры:</h3>
+            @foreach (var log in gameLog)
+            {
+                <p>@log</p>
+            }
+        </div>
+    </div>
+}
+</InteractiveServer>
+
+@code {
+    #nullable enable
+    private Player? currentPlayer;
+    private int currentPlayerIndex = 0;
+    public int maxScore;
+    private KingOfTheHill.Game? game;
+    private bool showBonuses = false;
+    private List<string> gameLog = new List<string>();
+    private bool skipNext = false;
+    private List<ICard> selectedCards = new List<ICard>();
+
+    private string GetCardClass(ICard card)
+    {
+        return card switch
+        {
+            PositiveCard => "positive",
+            NegativeCard => "negative",
+            BonusCard => "bonus",
+            SpecialCard => "special",
+            _ => ""
+        };
+    }
+
+    private string GetCardWordEnding(int count)
+    {
+        if (count % 10 == 1 && count % 100 != 11) return "у";
+        if (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)) return "ы";
+        return "";
+    }
+
+    private void SelectCard(ICard card)
+    {
+        if (game == null || currentPlayer == null || game.CurrentPlayer != currentPlayer.Id)
+            return;
+
+        if (selectedCards.Contains(card))
+        {
+            selectedCards.Remove(card);
+        }
+        else
+        {
+            // Можно выбрать только до 3 карт
+            if (selectedCards.Count < 3)
+            {
+                selectedCards.Add(card);
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedCards.Clear();
+        StateHasChanged();
+    }
+
+    private void TryPlaySelectedCards()
+    {
+        if (game == null || currentPlayer == null)
+            return;
+
+        // Если выбрана 1 карта - играем ее обычным способом
+        if (selectedCards.Count == 1)
+        {
+            PlayCard(selectedCards[0]);
+            ClearSelection();
+            return;
+        }
+
+        if (selectedCards.Count == 2)
+        {
+            AddToLog("Нельзя делать комбо из двух карт!");
+            ClearSelection();
+            return;
+        }
+
+        // Для 3 карт проверяем возможность комбо
+        if (selectedCards.Count == 3)
+        {
+            // Запрещаем комбо на специальных картах
+            if (selectedCards.Any(c => c is SpecialCard))
+            {
+                AddToLog("Нельзя делать комбо со специальными картами!");
+                ClearSelection();
+                return;
+            }
+
+            // Проверяем три одинаковые карты
+            bool allSame = CheckAllSameCards(selectedCards);
+
+            // Проверяем последовательность (1-2-3 или -1--2--3 и т.д.)
+            bool isSequence = CheckSequence(selectedCards);
+
+            if (!allSame && !isSequence)
+            {
+                AddToLog("Нельзя сделать комбо: карты должны быть либо одинаковые, либо последовательные (например, 1-2-3 или -1--2--3)");
+                ClearSelection();
+                return;
+            }
+
+            // Применяем эффект комбо
+            ApplyComboEffect(selectedCards, allSame, isSequence);
+
+            ClearSelection();
+            StateHasChanged();
+        }
+    }
+
+    private bool CheckAllSameCards(List<ICard> cards)
+    {
+        var firstCard = cards[0];
+
+        // Для бонусных карт (x2) просто проверяем тип
+        if (firstCard is BonusCard)
+        {
+            return cards.All(c => c is BonusCard);
+        }
+
+        // Для числовых карт проверяем и тип и значение
+        foreach (var card in cards)
+        {
+            if (card.GetType() != firstCard.GetType())
+                return false;
+
+            if (card is PositiveCard pc1 && firstCard is PositiveCard pc2 && pc1.Value != pc2.Value)
+                return false;
+
+            if (card is NegativeCard nc1 && firstCard is NegativeCard nc2 && nc1.Value != nc2.Value)
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool CheckSequence(List<ICard> cards)
+    {
+        // Проверяем что все карты одного типа (все положительные или все отрицательные)
+        if (cards.Any(c => c.GetType() != cards[0].GetType()))
+            return false;
+
+        // Получаем значения карт с учетом знака
+        var values = cards.Select(c =>
+            c is PositiveCard pc ? pc.Value :
+            c is NegativeCard nc ? -nc.Value :
+            0).ToList();
+
+        // Сортируем значения
+        values.Sort();
+
+        // Проверяем последовательность (разница между соседними = 1)
+        for (int i = 1; i < values.Count; i++)
+        {
+            if (values[i] - values[i - 1] != 1)
+                return false;
+        }
+
+        return true;
+    }
+
+    private void ApplyComboEffect(List<ICard> cards, bool allSame, bool isSequence)
+    {
+        int totalValue = 0;
+        string comboType = "";
+
+        if (allSame && cards[0] is BonusCard)
+        {
+            // Особый случай: комбо из трех x2 - умножаем счет на 2
+            currentPlayer.Score *= 2;
+            comboType = "комбо из трех двоек (умножение на 2)";
+        }
+        else if (allSame)
+        {
+            // Суммируем значения одинаковых карт
+            foreach (var card in cards)
+            {
+                if (card is PositiveCard pc)
+                    totalValue += pc.Value;
+                else if (card is NegativeCard nc)
+                    totalValue -= nc.Value;
+            }
+            currentPlayer.Score += totalValue;
+            comboType = $"три {Math.Abs(totalValue / 3)}{(totalValue > 0 ? "+" : "-")}";
+        }
+        else if (isSequence)
+        {
+            // Для последовательности суммируем значения
+            foreach (var card in cards)
+            {
+                if (card is PositiveCard pc)
+                    totalValue += pc.Value;
+                else if (card is NegativeCard nc)
+                    totalValue -= nc.Value;
+            }
+            currentPlayer.Score += totalValue;
+
+            // Формируем описание последовательности
+            var sortedValues = cards.Select(c =>
+                c is PositiveCard pc ? pc.Value :
+                c is NegativeCard nc ? -nc.Value :
+                0).OrderBy(v => v).ToList();
+
+            comboType = $"последовательность {string.Join("-", sortedValues)}";
+        }
+
+        // Удаляем карты из колоды
+        foreach (var card in cards)
+        {
+            currentPlayer.Deck.Remove(card);
+        }
+
+        AddToLog($"Игрок {game.Players.IndexOf(currentPlayer) + 1} сделал комбо {comboType} и получил {totalValue} очков! Новый счет: {currentPlayer.Score}");
+
+        // Проверяем победу
+        if (currentPlayer.Score >= game.MaxScore)
+        {
+            AddToLog($"Игрок {game.Players.IndexOf(currentPlayer) + 1} побеждает со счетом {currentPlayer.Score}!");
+            JSRuntime.InvokeVoidAsync("alert", $"Игрок {game.Players.IndexOf(currentPlayer) + 1} побеждает!");
+            game = null;
+            return;
+        }
+
+        // Активируем бонусы
+        currentPlayer.HasCombo = true;
+        showBonuses = true;
+    }
+
+    private void StartGame()
+    {
+        game = new KingOfTheHill.Game();
+        maxScore = game.MaxScore;
+
+        // Создаём игроков с явным Guid
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 1
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 2
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 3
+        game.Players.Add(new Player { Id = Guid.NewGuid() }); // Игрок 4
+
+        // Раздаём карты
+        foreach (var player in game.Players)
+        {
+            for (int i = 0; i < 6; i++)
+            {
+                player.Deck.Add(CardDeck.DrawRandomCard());
+            }
+        }
+
+        // Устанавливаем первого игрока текущим
+        game.CurrentPlayer = game.Players[0].Id;
+        currentPlayer = game.Players[0];
+
+        AddToLog($"Игра началась! Ход игрока 1 (ID={game.CurrentPlayer})");
+        StateHasChanged();
+    }
+
+    private string GetCardSymbol(ICard card)
+    {
+        return card switch
+        {
+            PositiveCard pc => $"+{pc.Value}",
+            NegativeCard nc => $"-{nc.Value}",
+            BonusCard _ => "×2",
+            SpecialCard sc => sc.Value == SpecialCommand.Silence ? "∅" : "🔄",
+            _ => "?"
+        };
+    }
+
+    private void PlayCard(ICard card)
+    {
+        if (game == null || currentPlayer == null || game.CurrentPlayer != currentPlayer.Id)
+            return;
+
+        var player = game.Players.First(p => p.Id == currentPlayer.Id);
+
+        // Добавляем карту в историю последних сыгранных карт
+        player.LastPlayedCards.Add(card);
+
+        // Ограничиваем историю последними 3 картами
+        if (player.LastPlayedCards.Count > 3)
+        {
+            player.LastPlayedCards.RemoveAt(0);
+        }
+
+        // Применяем эффект карты
+        switch (card)
+        {
+            case PositiveCard pc:
+                player.Score += pc.Value; // Изменено на прямое прибавление
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет +{pc.Value}. Новый счет: {player.Score}");
+                break;
+            case NegativeCard nc:
+                player.Score -= nc.Value; // Изменено на прямое вычитание
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет -{nc.Value}. Новый счет: {player.Score}");
+                break;
+            case BonusCard bc:
+                player.Score *= 2; // Изменено на прямое умножение
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} играет ×2. Новый счет: {player.Score}");
+                break;
+            case SpecialCard sc:
+                HandleSpecialCard(sc, player);
+                break;
+        }
+
+        // Удаляем карту из колоды игрока
+        player.Deck.Remove(card);
+
+        // Проверяем комбо только для положительных карт
+        if (card is PositiveCard)
+        {
+            CheckForCombos(player);
+        }
+
+        if (player.Score >= game.MaxScore)
+        {
+            AddToLog($"Игрок {game.Players.IndexOf(player) + 1} побеждает со счетом {player.Score}!");
+            JSRuntime.InvokeVoidAsync("alert", $"Игрок {game.Players.IndexOf(player) + 1} побеждает!");
+            game = null;
+            return;
+        }
+
+        StateHasChanged();
+
+        // Не завершаем ход если активировано комбо или если это специальная карта
+        if (card is not SpecialCard && !player.HasCombo)
+        {
+            EndTurn();
+        }
+    }
+
+    private void HandleSpecialCard(SpecialCard card, Player player)
+    {
+        if (game == null) return;
+
+        switch (card.Value)
+        {
+            case SpecialCommand.Silence:
+                var nextPlayerIndex = GetNextPlayerIndex();
+                var nextPlayer = game.Players[nextPlayerIndex];
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} пропускает ход игрока {nextPlayerIndex + 1}");
+
+                // Пропускаем ход следующего игрока (skipNext = true)
+                skipNext = true;
+                break;
+
+            case SpecialCommand.ChangeMove:
+                game.direction = game.direction == Direction.Left ? Direction.Right : Direction.Left;
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} меняет направление хода!");
+                break;
+        }
+    }
+
+    private void CheckForCombos(Player player)
+    {
+        // Берем последние 3 сыгранные карты
+        var lastThreeCards = player.LastPlayedCards
+            .TakeLast(3)
+            .OfType<PositiveCard>()
+            .ToList();
+
+        // Нужно ровно 3 положительные карты для комбо
+        if (lastThreeCards.Count != 3) return;
+
+        // Проверяем последовательность 1-2-3
+        var orderedValues = lastThreeCards.Select(c => c.Value).OrderBy(v => v).ToList();
+        bool isSequence = orderedValues[0] == 1 && orderedValues[1] == 2 && orderedValues[2] == 3;
+
+        // Проверяем три одинаковые карты
+        bool allSame = lastThreeCards.Select(c => c.Value).Distinct().Count() == 1;
+
+        if (isSequence || allSame)
+        {
+            player.HasCombo = true;
+            string comboType = isSequence ? "1-2-3" : $"три {lastThreeCards[0].Value}";
+            AddToLog($"Игрок {game.Players.IndexOf(player) + 1} собрал комбо {comboType}!");
+            showBonuses = true;
+
+            // Очищаем историю после комбо
+            player.LastPlayedCards.Clear();
+        }
+    }
+
+    private void UseBonus(string bonusType)
+    {
+        if (game == null || currentPlayer == null) return;
+
+        var player = game.Players.First(p => p.Id == currentPlayer.Id);
+
+        showBonuses = false;
+        player.HasCombo = false;
+        player.LastPlayedCards.Clear();
+
+        switch (bonusType)
+        {
+            case "reveal":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: видит счета всех игроков");
+                break;
+            case "match":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: видит совпадающие карты");
+                break;
+            case "destroy":
+                AddToLog($"Игрок {game.Players.IndexOf(player) + 1} использует бонус: уничтожает карту противника");
+                break;
+        }
+
+        // После использования бонуса передаем ход
+        EndTurn();
+    }
+
+    private void EndTurn()
+    {
+        if (game == null || game.Players.Count == 0) return;
+
+        // Получаем следующего игрока
+        int nextIndex = GetNextPlayerIndex();
+        var nextPlayer = game.Players[nextIndex];
+
+        // Тянем новую карту только если не сбрасывали 3 карты
+        if (selectedCards.Count == 0)
+        {
+            currentPlayer.Deck.Add(CardDeck.DrawRandomCard());
+        }
+
+        // Обновляем текущего игрока
+        game.CurrentPlayer = nextPlayer.Id;
+        currentPlayer = nextPlayer;
+
+        // Если нужно пропустить ход, просто переходим к следующему игроку
+        if (skipNext)
+        {
+            AddToLog($"Ход игрока {nextIndex + 1} пропущен!");
+            skipNext = false;
+            EndTurn(); // Рекурсивно вызываем для перехода к следующему игроку
+            return;
+        }
+
+        AddToLog($"Ход переходит к игроку {nextIndex + 1} (ID={game.CurrentPlayer})");
+        ClearSelection();
+        StateHasChanged();
+    }
+
+    private int GetNextPlayerIndex()
+    {
+        if (game == null || game.Players.Count == 0) return 0;
+
+        // Находим индекс текущего игрока по GUID
+        int currentIndex = game.Players.FindIndex(p => p.Id == game.CurrentPlayer);
+
+        if (currentIndex == -1)
+        {
+            // fallback (на случай ошибки)
+            Console.WriteLine("Игрок не найден! Возвращаем 0.");
+            return 0;
+        }
+
+        // Вычисляем следующего игрока с учётом направления
+        int nextIndex;
+        if (game.direction == Direction.Left)
+        {
+            nextIndex = (currentIndex + 1) % game.Players.Count;
+        }
+        else
+        {
+            nextIndex = (currentIndex - 1 + game.Players.Count) % game.Players.Count;
+        }
+
+        Console.WriteLine($"Следующий игрок: Index={nextIndex}, ID={game.Players[nextIndex].Id}");
+        return nextIndex;
+    }
+
+    private void AddToLog(string message)
+    {
+        gameLog.Insert(0, $"[{DateTime.Now:T}] {message}");
+        if (gameLog.Count > 20) gameLog.RemoveAt(gameLog.Count - 1);
+    }
+}

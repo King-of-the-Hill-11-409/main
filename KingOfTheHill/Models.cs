@@ -7,6 +7,7 @@ public class Player
     public List<ICard> Deck = [];
     public int Score = 0;
     public bool HasCombo = false;
+    public List<ICard> LastPlayedCards { get; set; } = new List<ICard>();
 }
 
 public interface ICard;

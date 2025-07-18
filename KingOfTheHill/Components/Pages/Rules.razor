@@ -1,0 +1,122 @@
+﻿@page "/rules"
+@rendermode InteractiveServer
+
+<link href="css/rules.css" rel="stylesheet" />
+
+<div class="rules-container">
+    <h1 class="rules-title">Правила игры "Царь горы"</h1>
+
+    <div class="rules-content">
+        <section class="rule-section">
+            <h2 class="section-title">🎯 Основная цель</h2>
+            <p>Первым набрать <strong>300 очков</strong>, используя карты и мешая другим игрокам.</p>
+        </section>
+
+        <section class="rule-section">
+            <h2 class="section-title">🃏 Виды карт</h2>
+            <div class="cards-grid">
+                <div class="card-type">
+                    <h3>Обычные (70%)</h3>
+                    <p>Карты от +1 до +10 и от -1 до -10</p>
+                    <div class="card-examples">
+                        <span class="card-example positive">+3</span>
+                        <span class="card-example negative">-5</span>
+                    </div>
+                </div>
+
+                <div class="card-type">
+                    <h3>Специальные (20%)</h3>
+                    <ul>
+                        <li>∅ - Пропуск хода</li>
+                        <li>🔄 - Смена направления</li>
+                    </ul>
+                </div>
+
+                <div class="card-type">
+                    <h3>Множитель (10%)</h3>
+                    <p>×2 - Удваивает очки</p>
+                    <div class="card-example bonus">×2</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="rule-section">
+            <h2 class="section-title">🎮 Ход игры</h2>
+            <ol class="game-steps">
+                <li>Каждому игроку раздается по 6 карт</li>
+                <li>Игроки ходят по очереди (по часовой стрелке)</li>
+                <li>Можно играть карты или пропускать ход</li>
+                <li>После хода игрок берет новую карту</li>
+                <li>Побеждает первый, набравший 300 очков</li>
+            </ol>
+        </section>
+
+        <section class="rule-section">
+            <h2 class="section-title">✨ Система комбо</h2>
+            <div class="combo-levels">
+                <div class="combo-level">
+                    <h3>1 уровень</h3>
+                    <p>1, 2, 3 (любые знаки)</p>
+                    <div class="combo-example">
+                        <span class="card-example positive">+1</span>
+                        <span class="card-example negative">-2</span>
+                        <span class="card-example positive">+3</span>
+                    </div>
+                </div>
+
+                <div class="combo-level">
+                    <h3>2 уровень</h3>
+                    <p>1, 2, 3 (одинаковые знаки)</p>
+                    <div class="combo-example">
+                        <span class="card-example positive">+1</span>
+                        <span class="card-example positive">+2</span>
+                        <span class="card-example positive">+3</span>
+                    </div>
+                </div>
+
+                <div class="combo-level">
+                    <h3>3 уровень</h3>
+                    <p>3 одинаковые карты</p>
+                    <div class="combo-example">
+                        <span class="card-example negative">-5</span>
+                        <span class="card-example negative">-5</span>
+                        <span class="card-example negative">-5</span>
+                    </div>
+                </div>
+            </div>
+            <p class="warning">⚠ Карты множителя нельзя использовать в комбо!</p>
+        </section>
+
+        <section class="rule-section">
+            <h2 class="section-title">🎁 Бонусы</h2>
+            <div class="bonuses-grid">
+                <div class="bonus">
+                    <div class="bonus-icon">𓂀</div>
+                    <h3>Показать счета</h3>
+                    <p>Временно видите очки всех игроков</p>
+                </div>
+
+                <div class="bonus">
+                    <div class="bonus-icon">🃟🃟</div>
+                    <h3>Совпадающие карты</h3>
+                    <p>Узнаете, какие карты у вас совпадают с другими</p>
+                </div>
+
+                <div class="bonus">
+                    <div class="bonus-icon">✄🃟</div>
+                    <h3>Уничтожить карту</h3>
+                    <p>Уничтожаете выбранную карту у соперника</p>
+                    <p class="bonus-warning">Ошибка = пропуск хода</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <button @onclick="@(() => Navigation.NavigateTo("/"))" class="back-button">
+         На главную
+    </button>
+</div>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; }
+}

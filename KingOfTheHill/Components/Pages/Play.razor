@@ -1,0 +1,35 @@
+@page "/game"
+@rendermode InteractiveServer
+@using KingOfTheHill
+
+<div>
+    <h1>Введите ваше имя:</h1>
+    <input @bind="@Username"/>
+</div>
+
+<div>
+    <div>
+        <h1>Список Лобби</h1>
+    </div>
+    <div>
+        @for (int i = 0; i < Lobbies.Count; i++)
+        {
+            <div>
+                <p>@i</p>
+            </div>
+            <div>
+                <p>@(Lobbies[@i].Players.Count)/4</p>
+            </div>
+            <div>
+                <p>@Lobbies[@i].isStarted</p>
+            </div>
+        }
+    </div>
+</div>
+
+
+@code
+{
+    private string? Username;
+    private List<Game> Lobbies = [];
+}

@@ -1,0 +1,61 @@
+.index-container {
+    display: flex;
+    height: 100%;
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    background: white;
+    text-align: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.index-title {
+    color: #333;
+    margin-bottom: 30px;
+}
+
+/* Критически важные стили для столбца */
+.buttons-column {
+    display: flex;
+    flex-direction: column; /* Главное - column! */
+    align-items: stretch; /* Растягиваем на всю ширину */
+    gap: 15px; /* Отступ между кнопками */
+}
+
+/* Стили кнопок */
+.nav-button {
+    width: 100%; /* Занимает всю ширину родителя */
+    padding: 12px 0;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+/* Цвета кнопок */
+.btn-game {
+    background: #4285f4;
+    color: white;
+}
+
+.btn-rules {
+    background: #34a853;
+    color: white;
+}
+
+/* Эффекты при наведении */
+.nav-button:hover {
+    opacity: 0.9;
+}
+
+/* Гарантия вертикальности на всех устройствах */
+@media (max-width: 400px) {
+    .index-container {
+        width: 90%;
+        padding: 20px;
+    }
+}

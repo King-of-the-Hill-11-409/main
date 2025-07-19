@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using static KingOfTheHill.IGameProvider;
 
 namespace KingOfTheHill.Hubs
 {
@@ -17,6 +18,11 @@ namespace KingOfTheHill.Hubs
         {
             _logger = logger;
             _gameProvider = gameProvider;
+        }
+
+        private async Task GetActiveGames()
+        {
+            await Clients.All.SendAsync("RefreshGamesList", _games);
         }
 
         private async Task CreateGameAsync(string playerName) // Создается лобби
@@ -42,6 +48,7 @@ namespace KingOfTheHill.Hubs
                 _gamesPlayersCount[game.GameID] += 1;
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, game.GameID.ToString());
+                await Clients.Caller.SendAsync("JoinGameLobby", game);
                 await Clients.All.SendAsync("GameCreated", game); // у создавшего отрисовывается окошка запуска,
                                                                   // все видять лобби
             }
@@ -81,7 +88,8 @@ namespace KingOfTheHill.Hubs
 
                     await Groups.AddToGroupAsync(Context.ConnectionId, gameId.ToString());
 
-                    await Clients.Caller.SendAsync("JoinGameLobby"); // у зашедшего отрисовывается окошко лобби
+                    await Clients.Group(gameId.ToString())
+                        .SendAsync("JoinGameLobby", _games[gameId]); // у зашедшего отрисовывается окошко лобби
 
                     var currentCount = _gamesPlayersCount[gameId];
 
@@ -253,7 +261,7 @@ namespace KingOfTheHill.Hubs
 
             try
             {
-                _gameProvider.DrawCard(player);
+                _gameProvider.DrawCard(ref player);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangePlayerState", player);
             }
             catch (Exception ex)
@@ -270,7 +278,7 @@ namespace KingOfTheHill.Hubs
 
             try
             {
-                _gameProvider.PassTheMove(game);
+                _gameProvider.PassTheMove(ref game);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
             }
             catch (Exception ex)
@@ -289,7 +297,7 @@ namespace KingOfTheHill.Hubs
 
             try
             {
-                _gameProvider.UseCardAttachedToPlayer(card, targetPlayer);
+                _gameProvider.UseCardAttachedToPlayer(card, ref targetPlayer);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangePlayerState", targetPlayer);
             }
             catch (Exception ex)
@@ -306,7 +314,7 @@ namespace KingOfTheHill.Hubs
 
             try
             {
-                _gameProvider.UseCardAttachedToGame(card, game);
+                _gameProvider.UseCardAttachedToGame(card, ref game);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
             }
             catch (Exception ex)

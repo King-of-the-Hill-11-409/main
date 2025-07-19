@@ -1,29 +1,41 @@
 @page "/game"
 @rendermode InteractiveServer
 @using KingOfTheHill
+@using Microsoft.AspNetCore.SignalR.Client
+@using static KingOfTheHill.IGameProvider
+@inject NavigationManager NavigationManager
 
 <div>
-    <h1>Введите ваше имя:</h1>
+    <h1>Введите ваше имя:</h1> //нужно обернуть все в 1 div для того чтобы при заходе в игру эту компоненту полностью скрыть
     <input @bind="@Username"/>
 </div>
 
-<div>
-    <div>
+<div class="lobbies">
+    <div class="lobbies__container"></div>
+    <div class="lobbies__title">
         <h1>Список Лобби</h1>
     </div>
-    <div>
-        @for (int i = 0; i < Lobbies.Count; i++)
+    <div class="lobbies__list">
+        @for (int i = 0; i < Lobbies?.Count; i++)
         {
-            <div>
-                <p>@i</p>
-            </div>
-            <div>
-                <p>@(Lobbies[@i].Players.Count)/4</p>
-            </div>
-            <div>
-                <p>@Lobbies[@i].isStarted</p>
+            <div class="list__lobby" @onclick="@(() => JoinLobby(Lobbies[i].GameID))">
+                <div class="lobby__title">
+                    <p>@i</p>
+                </div>
+                <div class="lobby__players">
+                    <p>@(Lobbies[@i].Players.Count)/4</p>
+                </div>
+                <div class="lobby__state">
+                    <p>@Lobbies[@i].isStarted</p>
+                </div>
             </div>
         }
+        <button class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
+        <button class="list__refreshButton">Обновить список лобби</button>
+        <div class="lobby__menu @(_isLobbyVisible ? "visible": "hidden")">
+            //TODO список игроков 
+            <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
+        </div>
     </div>
 </div>
 
@@ -31,5 +43,146 @@
 @code
 {
     private string? Username;
-    private List<Game> Lobbies = [];
+    private List<Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
+    //в методах _hubConnection.On... перезаписывать ее по айдишнику
+    private HubConnection? _hubConnection;
+    private bool _isLobbyVisible = false;
+    private bool _isTimerVisible = false;
+    private Game? _currentGame;
+
+
+    private int secondsRemaining = 60;
+    private bool isRunning = false;
+    private Timer? timer;
+    private string displayTime => $"{secondsRemaining / 60}:{secondsRemaining % 60:D2}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/game"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.Closed += async (error) =>
+        {
+            await Task.Delay(1000);
+            await _hubConnection.StartAsync();
+        };
+
+        try
+        {
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception)
+        {
+
+        }
+
+        _hubConnection.On<Game>("JoinGameLobby", (game) =>
+        {
+            _isLobbyVisible = true;
+            _currentGame = game;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Game>("GameCreated", (game) =>
+        {
+            Lobbies?.Add(game);
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On("TimerWasStarted", () =>
+        {
+            _isTimerVisible = true;
+            StartTimer();
+
+        });
+
+        _hubConnection.On("TimerWasCancelled", () => {
+            _isTimerVisible = false;
+            ResetTimer();
+        });
+
+        _hubConnection.On("StartGame", () =>
+        {
+            // текущи блок, то есть весь компонент Play делается невидимым
+        });
+
+        _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", () =>
+        {
+            // когда сделаешь игры словарем
+            // Lobbies = _games;
+            // InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task JoinLobby(Guid gameId)
+    {
+        if (_hubConnection is null) return;
+
+        try
+        {
+            await _hubConnection.SendAsync("JoinLobby", Username, gameId);
+        }
+        catch (Exception ex)
+        {
+            // ?
+        }
+    }
+
+    private async Task CreateLobby()
+    {
+        if (_hubConnection is null) return;
+
+        try
+        {
+            await _hubConnection.SendAsync("CreateGameAsync", Username);
+        }
+        catch (Exception ex)
+        {
+            
+        }
+    }
+
+    private void StartTimer()
+    {
+        if (!isRunning)
+        {
+            isRunning = true;
+            timer = new Timer(TimerCallback, null, 1000, 1000);
+        }
+    }
+
+    private void TimerCallback(object? state)
+    {
+        if (secondsRemaining > 0)
+        {
+            secondsRemaining--;
+            InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            TimerCompleted();
+        }
+    }
+
+    private void TimerCompleted()
+    {
+        timer?.Dispose();
+        isRunning = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetTimer()
+    {
+        timer?.Dispose();
+        secondsRemaining = 60;
+        isRunning = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
 }

@@ -7,4 +7,9 @@
 	<BlazorEnableCssIsolation>true</BlazorEnableCssIsolation>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="bunit" Version="1.40.0" />
+    <PackageReference Include="xunit" Version="1.7.0.1540" />
+  </ItemGroup>
+
 </Project>

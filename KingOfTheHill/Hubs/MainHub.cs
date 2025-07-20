@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using KingOfTheHill.Services;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -12,22 +13,38 @@ namespace KingOfTheHill.Hubs
         private static readonly ConcurrentDictionary<Guid, Game> _games = new();
         private static readonly ConcurrentDictionary<Guid, int> _gamesPlayersCount = new();
         private readonly ILogger _logger;
+        private readonly IHubContext<MainHub> _hubContext;
         private readonly IGameProvider _gameProvider;
 
-        public MainHub(ILogger logger, IGameProvider gameProvider)
+        public MainHub(ILogger logger, IGameProvider gameProvider, IHubContext<MainHub> hubContext)
         {
             _logger = logger;
             _gameProvider = gameProvider;
+            _hubContext = hubContext;
+        }
+
+        public override async Task OnDisconnectedAsync(Exception exception)
+        {
+            _logger.LogInformation($"The user {Context.ConnectionId} was disconnected");
+
+            var connectionId = Context.ConnectionId;
+            var gameId = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value.GameID;
+
+            await LeaveGameAsync(gameId);
+
+            await base.OnDisconnectedAsync(exception);
+
         }
 
         public async Task GetActiveGames()
         {
+            _logger.LogInformation($"Sending all active games to {Context.ConnectionId}");
+
             await Clients.All.SendAsync("RefreshGamesList", _games.ToDictionary());
         }
 
         public async Task CreateGameAsync(string playerName) // Создается лобби
         {
-            Console.WriteLine("From Hub");
             try
             {
                 var player = new Player()
@@ -45,6 +62,8 @@ namespace KingOfTheHill.Hubs
                     Players = [player]
                 };
 
+                _logger.LogInformation($"Game {game.GameID} was created by {Context.ConnectionId}");
+
                 player.GameId = game.GameID;
 
                 _games.TryAdd(game.GameID, game);
@@ -58,8 +77,9 @@ namespace KingOfTheHill.Hubs
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, $"Error creating game by {Context.ConnectionId}");
+
                 await Clients.Caller.SendAsync("GameCreateError");
-                _logger.LogError(ex, "CreateGameAsynError");
                 throw;
             }
 
@@ -88,33 +108,26 @@ namespace KingOfTheHill.Hubs
                         _gamesPlayersCount[gameId] += 1;
                     }
 
+                    _logger.LogInformation($"User {Context.ConnectionId} was joined game {gameId}");
+
                     await Groups.AddToGroupAsync(Context.ConnectionId, gameId.ToString());
 
                     await Clients.Group(gameId.ToString())
                         .SendAsync("JoinGameLobby", _games[gameId]); // у зашедшего отрисовывается окошко лобби
 
-                    var currentCount = _gamesPlayersCount[gameId];
+                    await StartGameAsync(gameId);
 
-                    if (currentCount == 4)
-                    {
-                        await Clients.Group(gameId.ToString()).SendAsync("LobbyIsFull");
-                    }
-
-                    else if (currentCount == 2)
-                    {
-                        await Clients.Group(gameId.ToString()).SendAsync("TimerWasStarted"); // у всех кто в лобби
-                                                                                             // (по определению есть окошко запуска)
-                                                                                             // видят таймер
-                    }
                 }
                 else
                 {
+                    _logger.LogInformation($"The game {gameId} was not found");
+
                     await Clients.Caller.SendAsync("GameNotFoundOrFull"); // окошко игра не найдена
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error joinin game");
+                _logger.LogError(ex, $"Error joinin game {gameId} by {Context.ConnectionId}");
             }
 
         }
@@ -125,13 +138,27 @@ namespace KingOfTheHill.Hubs
         // вот тут должна отрисоваться сама игра
         public async Task StartGameAsync(Guid gameId)
         {
-            Console.WriteLine("ABOBA ABOBA");
-            await Clients.Group(gameId.ToString()).SendAsync("StartGame", _games[gameId]); //Уведомляем пользователей
-                                                                                           //что игра началась (снимаем disabled с интерфейса)
+
+            var currentGamePlayers = _gamesPlayersCount[gameId];
+
+            if (currentGamePlayers == 2)
+            {
+                var timer = new GameTimerService(_logger);
+
+                timer.game = _games[gameId];
+                timer.OnTimerStarted = (g) => Clients.Group(g.ToString()).SendAsync("TimerWasStarted");
+                timer.OnTimerUpdate = (g, seconds) => _hubContext.Clients.Group(g.ToString()).SendAsync("UpdateTimer", seconds);
+                timer.OnTimerCompleted = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("StartGame");
+                timer.OnTimerStopped = (g) => Clients.Group(g.ToString()).SendAsync("TimerWasStopped");
+                timer.TimerStopCondition = (g) => g?.Players?.Count < 2;
+                timer.TimerCompletedCondition = (g) => g?.Players?.Count < 4;
+                await timer.StartTimer(60);
+            }
         }
 
         public async Task RestartGameAsync(Guid gameId)
         {
+            _logger.LogInformation($"Restarting game {gameId}");
 
             lock (_games[gameId])
             {
@@ -160,8 +187,12 @@ namespace KingOfTheHill.Hubs
         {
             try
             {
+                _logger.LogInformation($"The user {Context.ConnectionId} is leaving game {gameId}");
+
                 if (!_games.TryGetValue(gameId, out var game)) 
                 {
+                    _logger.LogInformation($"While leaving game, the game {gameId} was not found");
+
                     await Clients.Caller.SendAsync("GameNotFound");
                     return;
                 } 
@@ -172,6 +203,8 @@ namespace KingOfTheHill.Hubs
 
                     if (player is null)
                     {
+                        _logger.LogInformation($"While leaving game {gameId} the user {Context.ConnectionId} was not found");
+
                         Clients.Caller.SendAsync("PlayerNotFound");
                         return;
                     } 
@@ -184,8 +217,14 @@ namespace KingOfTheHill.Hubs
                 _gamesPlayersCount.TryGetValue(gameId, out var count);
                 Interlocked.Decrement(ref count);
 
+                await Clients.Group(gameId.ToString()).SendAsync("PlayerDisconnected");
+
+                _logger.LogInformation($"The user {Context.ConnectionId} leaved game {gameId}");
+
                 if (count == 0)
                 {
+                    _logger.LogInformation($"The game {gameId} is empty, deliting game...");
+
                     _games.TryRemove(gameId, out _);
                     _gamesPlayersCount.TryRemove(gameId, out _);
                 }
@@ -194,7 +233,7 @@ namespace KingOfTheHill.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error leaving game");
+                _logger.LogError($"While user {Context.ConnectionId} was leaving the game {gameId} occured error", ex);
             }
         }
 

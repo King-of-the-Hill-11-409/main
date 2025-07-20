@@ -3,12 +3,15 @@ using KingOfTheHill;
 using KingOfTheHill.Components;
 using KingOfTheHill.Hubs;
 using Newtonsoft.Json.Serialization;
+using KingOfTheHill.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddAuthentication();
 
 builder.Services.AddSignalR()
     .AddNewtonsoftJsonProtocol(options =>
@@ -29,6 +32,7 @@ builder.Services.AddSignalR()
 
 builder.Services.AddSingleton<ILogger, Logger<string>>();
 builder.Services.AddSingleton<IGameProvider, GameProvider>();
+builder.Services.AddTransient<GameTimerService>();
 
 var app = builder.Build();
 

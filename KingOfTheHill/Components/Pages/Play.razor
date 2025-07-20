@@ -46,7 +46,7 @@
         @if (_isLobbyVisible)
         {
             <div class="lobby__menu">
-                @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                @for (int i = 0; i < _currentGame?.Players?.Count; i++)
                 {
                     <div>
                         <p>
@@ -56,7 +56,7 @@
                 }
             </div>
             //TODO список игроков
-            <button @onclick="@(() => CancelTimer())">Pisi siski</button>
+            <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
             <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
         }
     </div>
@@ -76,13 +76,12 @@
     private int secondsRemaining = 60;
     private bool isRunning = false;
     private Timer? timer;
-    private string displayTime => $"{secondsRemaining / 60}:{secondsRemaining % 60:D2}";
+    private int displayTime = 60;
 
     protected override async Task OnInitializedAsync()
     {
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
-            .WithAutomaticReconnect()
             .AddNewtonsoftJsonProtocol(options =>
             {
                 options.PayloadSerializerSettings = new JsonSerializerSettings
@@ -99,12 +98,6 @@
                 };
             })
             .Build();
-
-        @* _hubConnection.Closed += async (error) =>
-        {
-            await Task.Delay(1000);
-            await _hubConnection.StartAsync();
-        }; *@
 
         try
         {
@@ -129,21 +122,29 @@
             InvokeAsync(StateHasChanged);
         });
 
+        _hubConnection.On<int>("UpdateTimer", (seconds) =>
+        {
+            _isTimerVisible = true;
+            displayTime = seconds;
+            InvokeAsync(StateHasChanged);
+
+        });
+
         _hubConnection.On("TimerWasStarted", () =>
         {
             _isTimerVisible = true;
-            StartTimer();
+            InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On("TimerWasCancelled", () => {
+        _hubConnection.On("TimerWasStopped", () =>
+        {
             _isTimerVisible = false;
-            ResetTimer();
+            InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On("StartGame", () =>
         {
-            Console.WriteLine("ABOBA PISI SISKI");
-            // текущи блок, то есть весь компонент Play делается невидимым
+            //
         });
 
         _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
@@ -163,7 +164,7 @@
             await _hubConnection.SendAsync("GetActiveGames");
         } catch (Exception ex)
         {
-
+            Console.WriteLine("Exeption on client side on RefreshLobbies", ex);
         }
     }
 
@@ -177,7 +178,7 @@
         }
         catch (Exception ex)
         {
-            // ?
+            Console.WriteLine("Exeption on client side on JoinLobby", ex);
         }
     }
 
@@ -191,57 +192,22 @@
         }
         catch (Exception ex)
         {
+            Console.WriteLine("Exeption on client side on CreateLobby", ex);
         }
     }
 
-    private void StartTimer()
+    private async Task LeaveLobby()
     {
-        if (!isRunning)
+        if (_hubConnection is null) return;
+
+        try
         {
-            isRunning = true;
-            timer = new Timer(TimerCallback, null, 1000, 1000);
+            await _hubConnection.SendAsync("LeaveGameAsync", _currentGame.GameID);
         }
-    }
 
-    private void TimerCallback(object? state)
-    {
-        if (_currentGame.Players.Count < 2) return;
-        if (secondsRemaining > 0)
+        catch (Exception ex)
         {
-            secondsRemaining--;
-            InvokeAsync(StateHasChanged);
+            Console.WriteLine("Exeption on client side on LeaveLobby", ex);
         }
-        else
-        {
-            TimerCompleted();
-        }
-    }
-
-    private void TimerCompleted()
-    {
-        timer?.Dispose();
-        isRunning = false;
-        _hubConnection.SendAsync("StartGameAsync", _currentGame!.GameID);
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void ResetTimer()
-    {
-        timer?.Dispose();
-        secondsRemaining = 60;
-        isRunning = false;
-        InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        timer?.Dispose();
-    }
-
-    public void CancelTimer()
-    {
-        ResetTimer();
-        InvokeAsync(StateHasChanged);
-        _isTimerVisible = false;
     }
 }

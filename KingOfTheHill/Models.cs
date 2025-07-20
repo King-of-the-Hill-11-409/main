@@ -211,7 +211,7 @@ public class Game
 
     public DateTime time { get; set; }
 
-    public List<Player>? Players { get; set; }
+    public List<Player>? Players { get; set; } = null!;
 }
 
 public enum Direction

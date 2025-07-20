@@ -35,7 +35,11 @@ namespace KingOfTheHill.Hubs
             await base.OnDisconnectedAsync(exception);
 
         }
-    
+
+        /// <summary>
+        /// Gets all active games and sends to client`s method RefreshGamesList
+        /// </summary>
+        /// <returns>Task</returns>
         public async Task GetActiveGames()
         {
             _logger.LogInformation($"Sending all active games to {Context.ConnectionId}");
@@ -43,6 +47,11 @@ namespace KingOfTheHill.Hubs
             await Clients.All.SendAsync("RefreshGamesList", _games.ToDictionary());
         }
 
+        /// <summary>
+        /// Creating a new Game and adds it to active games, sends to client`s methods JoinGAmeLobby and GameCreated created game
+        /// </summary>
+        /// <param name="playerName">Player name who calls this method</param>
+        /// <returns>Task</returns>
         public async Task CreateGameAsync(string playerName) // Создается лобби
         {
             try
@@ -85,7 +94,13 @@ namespace KingOfTheHill.Hubs
 
         }
 
-        public async Task JoinGameAsync(string playerName, Guid gameId) // заходим в лобби
+        /// <summary>
+        /// Adds user to active game with gameId ID, calls the JoinGameLobby and StartGameAsync"
+        /// </summary>
+        /// <param name="playerName">Player name who calls the method</param>
+        /// <param name="gameId">Game ID ih which player consist</param>
+        /// <returns>Task</returns>
+        public async Task JoinGameAsync(string playerName, Guid gameId)
         {
             try
             {
@@ -111,7 +126,7 @@ namespace KingOfTheHill.Hubs
                     await Groups.AddToGroupAsync(Context.ConnectionId, gameId.ToString());
 
                     await Clients.Group(gameId.ToString())
-                        .SendAsync("JoinGameLobby", _games[gameId]); // у зашедшего отрисовывается окошко лобби
+                        .SendAsync("JoinGameLobby", _games[gameId]);
 
                     await StartGameAsync(gameId);
                 }
@@ -119,7 +134,7 @@ namespace KingOfTheHill.Hubs
                 {
                     _logger.LogInformation($"The game {gameId} was not found");
 
-                    await Clients.Caller.SendAsync("GameNotFoundOrFull"); // окошко игра не найдена
+                    await Clients.Caller.SendAsync("GameNotFoundOrFull");
                 }
             }
             catch (Exception ex)
@@ -129,10 +144,11 @@ namespace KingOfTheHill.Hubs
 
         }
 
-        //после этих методов у пользователя вместо лобби должно отрисоваться окошко запуска игры с игроками,
-        //с переадрисацией ебля дипсик сосет
-
-        // вот тут должна отрисоваться сама игра
+        /// <summary>
+        /// Starts the timer which upon completition calls the StartGame method on client
+        /// </summary>
+        /// <param name="gameId">Game Id in which the caller consist</param>
+        /// <returns>Task</returns>
         public async Task StartGameAsync(Guid gameId)
         {
 
@@ -153,6 +169,11 @@ namespace KingOfTheHill.Hubs
             }
         }
 
+        /// <summary>
+        /// Restarts the game with gameId and calls the GameRestarted method on client
+        /// </summary>
+        /// <param name="gameId">Game id in which the caller consist</param>
+        /// <returns>Task</returns>
         public async Task RestartGameAsync(Guid gameId)
         {
             _logger.LogInformation($"Restarting game {gameId}");
@@ -175,11 +196,14 @@ namespace KingOfTheHill.Hubs
                 game.CurrentPlayer = game.Players[0].Id;
             }
 
-            await Clients.Group(gameId.ToString()).SendAsync("GameRestarted"); // придется выкинуть из комнаты с
-                                                                               // игрой и вернуться к окошку запуска игры
-                                                                               // иначе ебля
+            await Clients.Group(gameId.ToString()).SendAsync("GameRestarted");
         }
 
+        /// <summary>
+        /// Delete the callor from game, and delits the game if there is no one in it, calls the ToMainPage mrthod on client
+        /// </summary>
+        /// <param name="gameId">The id of game where is the caller consist</param>
+        /// <returns>Task</returns>
         public async Task LeaveGameAsync(Guid gameId)
         {
             try
@@ -222,7 +246,7 @@ namespace KingOfTheHill.Hubs
                     _gamesPlayersCount.TryRemove(gameId, out _);
                 }
 
-                await Clients.Caller.SendAsync("ToMainPage"); // возвращаем к списку лобби
+                await Clients.Caller.SendAsync("ToMainPage");
             }
             catch (Exception ex)
             {
@@ -241,11 +265,15 @@ namespace KingOfTheHill.Hubs
             return (game, player);
         }
 
-        // дальше во всех SendAsync просто отрисовываем изменения в игре
-
+        /// <summary>
+        /// Gives a random card to player, calls the ChangePlayerState method on client
+        /// </summary>
+        /// <returns>Task</returns>
         public async Task DrawCard()
         {
             var (game, player) = GetCurrentGameAndPlayer();
+
+            _logger.LogInformation($"The player {Context.ConnectionId} gets the card");
 
             if (game == null || player == null || player.Deck.Count >= 6)
                 return;
@@ -258,14 +286,21 @@ namespace KingOfTheHill.Hubs
             catch (Exception ex)
             {
                 _logger.LogError(ex, "DrawCardError");
+
                 await Clients.Caller.SendAsync("Error", "Failed to draw card");
             }
         }
 
+        /// <summary>
+        /// Pass the move to next player and calls the ChangeGameState method on client
+        /// </summary>
+        /// <returns>Task</returns>
         public async Task PassTheMove()
         {
             var (game, _) = GetCurrentGameAndPlayer();
             if (game == null) return;
+
+            _logger.LogInformation($"The player {Context.ConnectionId} is passing the move");
 
             try
             {
@@ -275,16 +310,25 @@ namespace KingOfTheHill.Hubs
             catch (Exception ex)
             {
                 _logger.LogError(ex, "PassTheMoveError");
+
                 await Clients.Caller.SendAsync("Error", "Failed to pass the move");
             }
         }
 
+        /// <summary>
+        /// Use card which change the player state(player score) and calls ChangePlayerState method on client
+        /// </summary>
+        /// <param name="card">Card</param>
+        /// <param name="targetPlayer">Target player</param>
+        /// <returns></returns>
         public async Task UseCardAttachedToPlayer(ICard card, Player? targetPlayer = null)
         {
             var (game, player) = GetCurrentGameAndPlayer();
             targetPlayer ??= player;
 
             if (game == null || targetPlayer == null) return;
+
+            _logger.LogInformation($"The player {Context.ConnectionId} is using the card attached to player {targetPlayer.ConnectionId}");
 
             try
             {
@@ -298,11 +342,17 @@ namespace KingOfTheHill.Hubs
             }
         }
 
+        /// <summary>
+        /// Use card attached to game which change the game state and calls the ChangeGameState method on client
+        /// </summary>
+        /// <param name="card">Card</param>
+        /// <returns>Task</returns>
         public async Task UseCardAttachedToGame(ICard card)
         {
             var (game, _) = GetCurrentGameAndPlayer();
             if (game == null) return;
 
+            _logger.LogInformation($"The player {Context.ConnectionId} is using card attached to game");
             try
             {
                 _gameProvider.UseCardAttachedToGame(card, ref game);
@@ -315,8 +365,14 @@ namespace KingOfTheHill.Hubs
             }
         }
 
+        /// <summary>
+        /// Ends the move of player
+        /// </summary>
+        /// <returns>Task</returns>
         public async Task EndMove()
         {
+            _logger.LogInformation($"Player {Context.ConnectionId} has ended his turn");
+
             await PassTheMove();
         }
     }

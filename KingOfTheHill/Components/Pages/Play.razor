@@ -32,27 +32,28 @@
                 }
                 </div>
             }
-            <div class="button__lobby">
+        }
+        <div class="button__lobby"></div>
                 <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
                 <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
             </div>
-            @if (_isLobbyVisible)
-            {
-                <div class="lobby__menu">
-                    @for (int i = 0; i < _currentGame!.Players.Count; i++)
-                    {
-                        <div>
-                            <p>@(i + 1)</p>
-                            <p>
-                                @_currentGame!.Players[@i].Name;
-                            </p>
-                        </div>
-                    }
-                </div>
-                //TODO список игроков
-                <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
-            }
-        </div>
+        @if (_isLobbyVisible)
+        {
+            <div class="lobby__menu">
+                @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                {
+                    <div>
+                        <p>@(i + 1)</p>
+                        <p>
+                            @_currentGame!.Players[@i].Name;
+                        </p>
+                    </div>
+                }
+            </div>
+            //TODO список игроков
+            <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
+            <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
+        }
     </div>
 </div>
 
@@ -71,7 +72,7 @@
     private int secondsRemaining = 60;
     private bool isRunning = false;
     private Timer? timer;
-    private string displayTime => $"{secondsRemaining / 60}:{secondsRemaining % 60:D2}";
+    private int displayTime = 60;
 
     protected override async Task OnInitializedAsync()
     {
@@ -94,11 +95,6 @@
             })
             .Build();
 
-        _hubConnection.Closed += async (error) =>
-        {
-            await Task.Delay(1000);
-            await _hubConnection.StartAsync();
-        };
 
         try
         {
@@ -114,7 +110,6 @@
         {
             _isLobbyVisible = true;
             _currentGame = game;
-            Console.WriteLine(_currentGame.Players.Count);
             InvokeAsync(StateHasChanged);
         });
 
@@ -124,22 +119,29 @@
             InvokeAsync(StateHasChanged);
         });
 
+        _hubConnection.On<int>("UpdateTimer", (seconds) =>
+        {
+            _isTimerVisible = true;
+            displayTime = seconds;
+            InvokeAsync(StateHasChanged);
+
+        });
+
         _hubConnection.On("TimerWasStarted", () =>
         {
             _isTimerVisible = true;
-            StartTimer();
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On("TimerWasCancelled", () => {
+        _hubConnection.On("TimerWasStopped", () =>
+        {
             _isTimerVisible = false;
-            ResetTimer();
+            InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On("StartGame", () =>
         {
-            Console.WriteLine("ABOBA PISI SISKI");
-            // текущи блок, то есть весь компонент Play делается невидимым
+            //
         });
 
         _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
@@ -159,7 +161,7 @@
             await _hubConnection.SendAsync("GetActiveGames");
         } catch (Exception ex)
         {
-
+            Console.WriteLine("Exeption on client side on RefreshLobbies", ex);
         }
     }
 
@@ -173,7 +175,7 @@
         }
         catch (Exception ex)
         {
-            // ?
+            Console.WriteLine("Exeption on client side on JoinLobby", ex);
         }
     }
 
@@ -190,52 +192,19 @@
         }
     }
 
-    private void StartTimer()
-    {
-        if (isRunning) ResetTimer();
-        isRunning = true;
-        timer = new Timer(TimerCallback, null, 1000, 1000);
-    }
 
-    private void TimerCallback(object? state)
+    private async Task LeaveLobby()
     {
-        if (_currentGame.Players.Count < 2) return;
-        if (secondsRemaining > 0)
+        if (_hubConnection is null) return;
+
+        try
         {
-            secondsRemaining--;
-            InvokeAsync(StateHasChanged);
+            await _hubConnection.SendAsync("LeaveGameAsync", _currentGame.GameID);
         }
-        else
+
+        catch (Exception ex)
         {
-            TimerCompleted();
+            Console.WriteLine("Exeption on client side on LeaveLobby", ex);
         }
-    }
-
-    private void TimerCompleted()
-    {
-        timer?.Dispose();
-        isRunning = false;
-        _hubConnection.SendAsync("StartGameAsync", _currentGame!.GameID);
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void ResetTimer()
-    {
-        timer?.Dispose();
-        secondsRemaining = 60;
-        isRunning = false;
-        InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        timer?.Dispose();
-    }
-
-    public void CancelTimer()
-    {
-        ResetTimer();
-        InvokeAsync(StateHasChanged);
-        _isTimerVisible = false;
     }
 }

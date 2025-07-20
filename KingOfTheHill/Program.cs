@@ -3,6 +3,7 @@ using KingOfTheHill;
 using KingOfTheHill.Components;
 using KingOfTheHill.Hubs;
 using Newtonsoft.Json.Serialization;
+using KingOfTheHill.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +34,7 @@ builder.Services.AddSignalR(options =>
 
 builder.Services.AddSingleton<ILogger, Logger<string>>();
 builder.Services.AddSingleton<IGameProvider, GameProvider>();
+builder.Services.AddTransient<GameTimerService>();
 
 var app = builder.Build();
 

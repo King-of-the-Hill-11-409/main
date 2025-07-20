@@ -7,60 +7,55 @@
 @using static KingOfTheHill.IGameProvider
 @inject NavigationManager NavigationManager
 
-<div>
-    <h1>Введите ваше имя:</h1>
-    <input @bind="@Username"/>
-</div>
 
-<div class="lobbies">
-    <div class="lobbies__container"></div>
-    <div class="lobbies__title">
-        <h1>Список Лобби</h1>
+<div class="lobby__container">
+    <div class="input__block">
+        <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
     </div>
-    <div class="lobbies__list">
-        @if (Lobbies != null)
-        {
-            @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
+
+    <div class="lobbies">
+        <div class="lobbies__title">
+            <h1>Список Лобби</h1>
+        </div>
+        <div class="lobbies__list">
+            @if (Lobbies != null)
             {
                 <div class="list__lobby">
-                    <span>
-                        <span>@(i + 1)</span>
-                        <span>@(item.Value.Players.Count)/4</span>
-                        <span>@item.Value.isStarted</span>
-                    </span>
-                    <button @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
-                    @* <div class="lobby__title">
-                        <p>@i</p>
-                    </div>
-                    <div class="lobby__players">
-                        <p>@(item.Value.Players.Count)/4</p>
-                    </div>
-                    <div class="lobby__state">
-                        <p>@item.Value.isStarted</p>
-                    </div> *@
+                @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
+                {
+                        <div>
+                            <p>@(i + 1)</p>
+                            <p>@(item.Value.Players.Count)/4</p>
+                            <p>@item.Value.isStarted</p>
+                            <button disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null) @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
+                        </div>
+                }
                 </div>
             }
-        }
-        <button class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
-        <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
-        @if (_isLobbyVisible)
-        {
-            <div class="lobby__menu">
-                @for (int i = 0; i < _currentGame!.Players.Count; i++)
-                {
-                    <div>
-                        <p>
-                            @_currentGame!.Players[@i].Name;
-                        </p>
-                    </div>
-                }
+            <div class="button__lobby">
+                <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
+                <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
             </div>
-            //TODO список игроков
-            <button @onclick="@(() => CancelTimer())">Pisi siski</button>
-            <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
-        }
+            @if (_isLobbyVisible)
+            {
+                <div class="lobby__menu">
+                    @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                    {
+                        <div>
+                            <p>@(i + 1)</p>
+                            <p>
+                                @_currentGame!.Players[@i].Name;
+                            </p>
+                        </div>
+                    }
+                </div>
+                //TODO список игроков
+                <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
+            }
+        </div>
     </div>
 </div>
+
 
 
 @code
@@ -82,7 +77,6 @@
     {
         _hubConnection = new HubConnectionBuilder()
             .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
-            .WithAutomaticReconnect()
             .AddNewtonsoftJsonProtocol(options =>
             {
                 options.PayloadSerializerSettings = new JsonSerializerSettings
@@ -100,11 +94,11 @@
             })
             .Build();
 
-        @* _hubConnection.Closed += async (error) =>
+        _hubConnection.Closed += async (error) =>
         {
             await Task.Delay(1000);
             await _hubConnection.StartAsync();
-        }; *@
+        };
 
         try
         {
@@ -120,6 +114,7 @@
         {
             _isLobbyVisible = true;
             _currentGame = game;
+            Console.WriteLine(_currentGame.Players.Count);
             InvokeAsync(StateHasChanged);
         });
 
@@ -133,6 +128,7 @@
         {
             _isTimerVisible = true;
             StartTimer();
+            InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On("TimerWasCancelled", () => {
@@ -196,11 +192,9 @@
 
     private void StartTimer()
     {
-        if (!isRunning)
-        {
-            isRunning = true;
-            timer = new Timer(TimerCallback, null, 1000, 1000);
-        }
+        if (isRunning) ResetTimer();
+        isRunning = true;
+        timer = new Timer(TimerCallback, null, 1000, 1000);
     }
 
     private void TimerCallback(object? state)

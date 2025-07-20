@@ -181,7 +181,7 @@ public static class CardDeck
             return isPositive
                 ? new PositiveCard(value)
                 : new NegativeCard(value);
-        }
+        } 
         else if (chance < 0.95)
         {
             var command = random.Next(2) == 0
@@ -211,7 +211,7 @@ public class Game
 
     public DateTime time { get; set; }
 
-    public List<Player>? Players { get; set; }
+    public List<Player> Players { get; set; } = [];
 }
 
 public enum Direction

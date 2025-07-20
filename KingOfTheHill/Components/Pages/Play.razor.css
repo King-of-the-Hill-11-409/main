@@ -1,0 +1,111 @@
+.lobby__container {
+    background-image: url("images/Green.png");
+    background-size: cover;
+    height: 100%;
+    color: white;
+    padding: 20px;
+}
+
+.lobbies__list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.list__lobby {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    background-color: rgba(1, 1, 1, 0.6);
+    border-radius: 10px;
+}
+
+.list__lobby div {
+    display: flex;
+    justify-content: space-around;
+    font-size: 1.1em;
+    padding: 10px;
+    border: 2px solid white;
+    align-items: center;
+}
+
+.list__lobby div button {
+    background-color: white;
+    padding: 5px;
+    color: black;
+    border-radius: 5px;
+    width: 20%;
+}
+
+.lobby__menu {
+    background-color: rgba(1, 1, 1, 0.5);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 10px;
+}
+
+.lobby__menu div {
+    border: 2px solid white;
+    border-radius: 3px;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px;
+    font-size: 1.2em;
+}
+
+.button__lobby {
+    display: flex;
+    justify-content: space-around;
+    background-color: rgba(1, 1, 1, 0.5);
+    border-radius: 6px;
+    align-items: center;
+    padding: 10px;
+}
+
+.list__createButton {
+    padding: 5px;
+    font-size: 1.1em;
+    width: 20%;
+    background-color: darkgreen;
+    border-radius: 3px;
+}
+
+.list__refreshButton {
+    padding: 5px;
+    font-size: 1.1em;
+    background-color: cornflowerblue;
+    border-radius: 3px;
+    width: 25%;
+}
+
+.lobby__container h1 {
+    font-size: 2em;
+    text-align: center;
+}
+
+.input__block {
+    display: flex;
+    position: absolute;
+    background-color: darkgray;
+    width: 100%;
+    left: 0%;
+    border-top-left-radius: 0.5em;
+    top: 90%;
+    border-top-right-radius: 0.5em;
+    justify-content: center;
+    padding: 0.2em;
+}
+
+.input__block input {
+    width: 50%;
+    background-color: black;
+    color: white;
+    text-align: center;
+    font-size: 1.3em;
+    border-radius: 10px;
+}
+
+/* .input__block input:disabled {
+    
+} */

@@ -20,6 +20,16 @@ namespace KingOfTheHill.Hubs
             _gameProvider = gameProvider;
         }
 
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            Game? game = _games.Values
+                    .FirstOrDefault(game => game.Players.Any(p => p.ConnectionId == Context.ConnectionId));
+
+            if (game is null) return;
+            await LeaveGameAsync(game.GameID);
+            await base.OnDisconnectedAsync(exception);
+        }
+
         public async Task GetActiveGames()
         {
             await Clients.All.SendAsync("RefreshGamesList", _games.ToDictionary());
@@ -71,8 +81,6 @@ namespace KingOfTheHill.Hubs
             {
                 if (_games.ContainsKey(gameId) && _gamesPlayersCount[gameId] < 4)
                 {
-                    var cts = new CancellationTokenSource();
-
                     var player = new Player()
                     {
                         ConnectionId = Context.ConnectionId,
@@ -100,7 +108,7 @@ namespace KingOfTheHill.Hubs
                         await Clients.Group(gameId.ToString()).SendAsync("LobbyIsFull");
                     }
 
-                    else if (currentCount == 2)
+                    else if (currentCount >= 2)
                     {
                         await Clients.Group(gameId.ToString()).SendAsync("TimerWasStarted"); // у всех кто в лобби
                                                                                              // (по определению есть окошко запуска)
@@ -164,9 +172,9 @@ namespace KingOfTheHill.Hubs
                 {
                     await Clients.Caller.SendAsync("GameNotFound");
                     return;
-                } 
+                }
 
-                lock(game.Players)
+                lock (game.Players)
                 {
                     var player = game.Players.First(p => p.ConnectionId == Context.ConnectionId);
 
@@ -174,15 +182,15 @@ namespace KingOfTheHill.Hubs
                     {
                         Clients.Caller.SendAsync("PlayerNotFound");
                         return;
-                    } 
+                    }
 
                     game.Players.Remove(player);
+                    _gamesPlayersCount[gameId] -= 1;
                 }
 
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, gameId.ToString());
 
                 _gamesPlayersCount.TryGetValue(gameId, out var count);
-                Interlocked.Decrement(ref count);
 
                 if (count == 0)
                 {

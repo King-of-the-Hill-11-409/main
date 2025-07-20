@@ -91,3 +91,19 @@ legend {
 input[type='file'] {
 	max-width: 100%;
 }
+
+html{
+	height: 100vh;
+}
+
+body{
+	height: 100%;
+}
+
+* {
+	font-family: "Roboto", sans-serif;
+	font-optical-sizing: auto;
+	font-weight: 300;
+	font-style: normal;
+	font-variation-settings: "wdth" 100;
+}

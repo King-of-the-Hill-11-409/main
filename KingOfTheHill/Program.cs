@@ -10,7 +10,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSignalR()
+builder.Services.AddSignalR(options =>
+    {
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(1);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(1); // Пинги каждые 5 сек
+    })
     .AddNewtonsoftJsonProtocol(options =>
     {
         options.PayloadSerializerSettings = new JsonSerializerSettings

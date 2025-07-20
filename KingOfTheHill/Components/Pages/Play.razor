@@ -2,11 +2,13 @@
 @rendermode InteractiveServer
 @using KingOfTheHill
 @using Microsoft.AspNetCore.SignalR.Client
+@using Newtonsoft.Json
+@using Newtonsoft.Json.Serialization
 @using static KingOfTheHill.IGameProvider
 @inject NavigationManager NavigationManager
 
 <div>
-    <h1>Введите ваше имя:</h1> //нужно обернуть все в 1 div для того чтобы при заходе в игру эту компоненту полностью скрыть
+    <h1>Введите ваше имя:</h1>
     <input @bind="@Username"/>
 </div>
 
@@ -16,26 +18,47 @@
         <h1>Список Лобби</h1>
     </div>
     <div class="lobbies__list">
-        @for (int i = 0; i < Lobbies?.Count; i++)
+        @if (Lobbies != null)
         {
-            <div class="list__lobby" @onclick="@(() => JoinLobby(Lobbies[i].GameID))">
-                <div class="lobby__title">
-                    <p>@i</p>
+            @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
+            {
+                <div class="list__lobby">
+                    <span>
+                        <span>@(i + 1)</span>
+                        <span>@(item.Value.Players.Count)/4</span>
+                        <span>@item.Value.isStarted</span>
+                    </span>
+                    <button @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
+                    @* <div class="lobby__title">
+                        <p>@i</p>
+                    </div>
+                    <div class="lobby__players">
+                        <p>@(item.Value.Players.Count)/4</p>
+                    </div>
+                    <div class="lobby__state">
+                        <p>@item.Value.isStarted</p>
+                    </div> *@
                 </div>
-                <div class="lobby__players">
-                    <p>@(Lobbies[@i].Players.Count)/4</p>
-                </div>
-                <div class="lobby__state">
-                    <p>@Lobbies[@i].isStarted</p>
-                </div>
-            </div>
+            }
         }
         <button class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
-        <button class="list__refreshButton">Обновить список лобби</button>
-        <div class="lobby__menu @(_isLobbyVisible ? "visible": "hidden")">
-            //TODO список игроков 
+        <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
+        @if (_isLobbyVisible)
+        {
+            <div class="lobby__menu">
+                @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                {
+                    <div>
+                        <p>
+                            @_currentGame!.Players[@i].Name;
+                        </p>
+                    </div>
+                }
+            </div>
+            //TODO список игроков
+            <button @onclick="@(() => CancelTimer())">Pisi siski</button>
             <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
-        </div>
+        }
     </div>
 </div>
 
@@ -43,13 +66,12 @@
 @code
 {
     private string? Username;
-    private List<Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
+    private Dictionary<Guid, Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
     //в методах _hubConnection.On... перезаписывать ее по айдишнику
     private HubConnection? _hubConnection;
     private bool _isLobbyVisible = false;
     private bool _isTimerVisible = false;
     private Game? _currentGame;
-
 
     private int secondsRemaining = 60;
     private bool isRunning = false;
@@ -59,18 +81,34 @@
     protected override async Task OnInitializedAsync()
     {
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(NavigationManager.ToAbsoluteUri("/game"))
+            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
             .WithAutomaticReconnect()
+            .AddNewtonsoftJsonProtocol(options =>
+            {
+                options.PayloadSerializerSettings = new JsonSerializerSettings
+                {
+                    // Настройки сериализации Newtonsoft.Json
+                    NullValueHandling = NullValueHandling.Ignore,
+                    Formatting = Formatting.None,
+                    ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+                    TypeNameHandling = TypeNameHandling.Auto, // Для поддержки полиморфизма
+                    ContractResolver = new DefaultContractResolver
+                    {
+                        NamingStrategy = new CamelCaseNamingStrategy()
+                    }
+                };
+            })
             .Build();
 
-        _hubConnection.Closed += async (error) =>
+        @* _hubConnection.Closed += async (error) =>
         {
             await Task.Delay(1000);
             await _hubConnection.StartAsync();
-        };
+        }; *@
 
         try
         {
+            Console.WriteLine("Aboba");
             await _hubConnection.StartAsync();
         }
         catch (Exception)
@@ -87,7 +125,7 @@
 
         _hubConnection.On<Game>("GameCreated", (game) =>
         {
-            Lobbies?.Add(game);
+            Lobbies?.Add(game.GameID, game);
             InvokeAsync(StateHasChanged);
         });
 
@@ -95,7 +133,6 @@
         {
             _isTimerVisible = true;
             StartTimer();
-
         });
 
         _hubConnection.On("TimerWasCancelled", () => {
@@ -105,15 +142,29 @@
 
         _hubConnection.On("StartGame", () =>
         {
+            Console.WriteLine("ABOBA PISI SISKI");
             // текущи блок, то есть весь компонент Play делается невидимым
         });
 
-        _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", () =>
+        _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
         {
             // когда сделаешь игры словарем
-            // Lobbies = _games;
-            // InvokeAsync(StateHasChanged);
+            Lobbies = _games;
+            InvokeAsync(StateHasChanged);
         });
+    }
+
+    private async Task RefreshLobbies()
+    {
+        if (_hubConnection is null) return;
+
+        try
+        {
+            await _hubConnection.SendAsync("GetActiveGames");
+        } catch (Exception ex)
+        {
+
+        }
     }
 
     private async Task JoinLobby(Guid gameId)
@@ -122,7 +173,7 @@
 
         try
         {
-            await _hubConnection.SendAsync("JoinLobby", Username, gameId);
+            await _hubConnection.SendAsync("JoinGameAsync", Username, gameId);
         }
         catch (Exception ex)
         {
@@ -140,7 +191,6 @@
         }
         catch (Exception ex)
         {
-            
         }
     }
 
@@ -155,6 +205,7 @@
 
     private void TimerCallback(object? state)
     {
+        if (_currentGame.Players.Count < 2) return;
         if (secondsRemaining > 0)
         {
             secondsRemaining--;
@@ -170,6 +221,7 @@
     {
         timer?.Dispose();
         isRunning = false;
+        _hubConnection.SendAsync("StartGameAsync", _currentGame!.GameID);
         InvokeAsync(StateHasChanged);
     }
 
@@ -184,5 +236,12 @@
     public void Dispose()
     {
         timer?.Dispose();
+    }
+
+    public void CancelTimer()
+    {
+        ResetTimer();
+        InvokeAsync(StateHasChanged);
+        _isTimerVisible = false;
     }
 }

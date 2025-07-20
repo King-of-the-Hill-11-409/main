@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Text.Json;
 using static KingOfTheHill.IGameProvider;
 
 namespace KingOfTheHill.Hubs
@@ -10,7 +11,6 @@ namespace KingOfTheHill.Hubs
 
         private static readonly ConcurrentDictionary<Guid, Game> _games = new();
         private static readonly ConcurrentDictionary<Guid, int> _gamesPlayersCount = new();
-        private static readonly ConcurrentDictionary<Guid, CancellationTokenSource> _cancellationTokens = new();
         private readonly ILogger _logger;
         private readonly IGameProvider _gameProvider;
 
@@ -20,13 +20,14 @@ namespace KingOfTheHill.Hubs
             _gameProvider = gameProvider;
         }
 
-        private async Task GetActiveGames()
+        public async Task GetActiveGames()
         {
-            await Clients.All.SendAsync("RefreshGamesList", _games);
+            await Clients.All.SendAsync("RefreshGamesList", _games.ToDictionary());
         }
 
-        private async Task CreateGameAsync(string playerName) // Создается лобби
+        public async Task CreateGameAsync(string playerName) // Создается лобби
         {
+            Console.WriteLine("From Hub");
             try
             {
                 var player = new Player()
@@ -35,16 +36,19 @@ namespace KingOfTheHill.Hubs
                     Name = playerName
 
                 };
+
+                player.Deck.Add(new PositiveCard(5));
                 var game = new Game()
                 {
-                    GameID = Guid.NewGuid(),
                     CurrentPlayer = player.Id,
-                    time = DateTime.Now
+                    time = DateTime.Now,
+                    Players = [player]
                 };
 
                 player.GameId = game.GameID;
 
                 _games.TryAdd(game.GameID, game);
+                _gamesPlayersCount.TryAdd(game.GameID, 0);
                 _gamesPlayersCount[game.GameID] += 1;
 
                 await Groups.AddToGroupAsync(Context.ConnectionId, game.GameID.ToString());
@@ -61,12 +65,13 @@ namespace KingOfTheHill.Hubs
 
         }
 
-        private async Task JoinGameAsync(string playerName, Guid gameId) // заходим в лобби
+        public async Task JoinGameAsync(string playerName, Guid gameId) // заходим в лобби
         {
             try
             {
                 if (_games.ContainsKey(gameId) && _gamesPlayersCount[gameId] < 4)
                 {
+                    var cts = new CancellationTokenSource();
 
                     var player = new Player()
                     {
@@ -80,11 +85,8 @@ namespace KingOfTheHill.Hubs
                     lock (_games[gameId].Players)
                     {
                         _games[gameId].Players.Add(player);
+                        _gamesPlayersCount[gameId] += 1;
                     }
-
-                    _gamesPlayersCount.TryGetValue(gameId, out int val);
-
-                    Interlocked.Increment(ref val);
 
                     await Groups.AddToGroupAsync(Context.ConnectionId, gameId.ToString());
 
@@ -95,25 +97,11 @@ namespace KingOfTheHill.Hubs
 
                     if (currentCount == 4)
                     {
-                        if (_cancellationTokens.TryGetValue(gameId, out var cts))
-                        {
-                            cts.Cancel();
-                            _cancellationTokens.TryRemove(gameId, out _);
-                        }
-
-                        await StartGameAsync(gameId);
+                        await Clients.Group(gameId.ToString()).SendAsync("LobbyIsFull");
                     }
 
-                    else if (currentCount == 2 && !_cancellationTokens.ContainsKey(gameId))
+                    else if (currentCount == 2)
                     {
-                        var cts = new CancellationTokenSource();
-
-                        if (!_cancellationTokens.TryAdd(gameId, cts))
-                        {
-                            cts.Dispose();
-                        }
-
-                        await StartGameByTimerAsync(gameId, _cancellationTokens[gameId].Token);
                         await Clients.Group(gameId.ToString()).SendAsync("TimerWasStarted"); // у всех кто в лобби
                                                                                              // (по определению есть окошко запуска)
                                                                                              // видят таймер
@@ -134,38 +122,15 @@ namespace KingOfTheHill.Hubs
         //после этих методов у пользователя вместо лобби должно отрисоваться окошко запуска игры с игроками,
         //с переадрисацией ебля дипсик сосет
 
-        private async Task StartGameByTimerAsync(Guid gameId, CancellationToken cts) // запускаем таймер если набралось
-                                                                                     // два человека и запускаем игру
-        {
-
-            try
-            {
-                await Task.Delay(TimeSpan.FromMinutes(1), cts); // можно минуту сделать параметром
-
-                if (_gamesPlayersCount[gameId] >= 2)
-                {
-                    await StartGameAsync(gameId);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation($"The start of {gameId} was canceled");
-                await Clients.Group(gameId.ToString()).SendAsync("TimerWasCancelled"); // окошко остается таймер убирается
-            }
-            finally
-            {
-                if(_cancellationTokens.TryRemove(gameId, out var ct)) ct.Dispose();
-            }
-        }
-
         // вот тут должна отрисоваться сама игра
-        private async Task StartGameAsync(Guid gameId)
+        public async Task StartGameAsync(Guid gameId)
         {
+            Console.WriteLine("ABOBA ABOBA");
             await Clients.Group(gameId.ToString()).SendAsync("StartGame", _games[gameId]); //Уведомляем пользователей
                                                                                            //что игра началась (снимаем disabled с интерфейса)
         }
 
-        private async Task RestartGameAsync(Guid gameId)
+        public async Task RestartGameAsync(Guid gameId)
         {
 
             lock (_games[gameId])
@@ -185,17 +150,13 @@ namespace KingOfTheHill.Hubs
                 };
                 game.CurrentPlayer = game.Players[0].Id;
             }
-            var cts = new CancellationTokenSource();
-
-            if(!_cancellationTokens.TryAdd(gameId, cts)) cts.Dispose();
 
             await Clients.Group(gameId.ToString()).SendAsync("GameRestarted"); // придется выкинуть из комнаты с
                                                                                // игрой и вернуться к окошку запуска игры
                                                                                // иначе ебля
-            await StartGameByTimerAsync(gameId, cts.Token);
         }
 
-        private async Task LeaveGameAsync(Guid gameId)
+        public async Task LeaveGameAsync(Guid gameId)
         {
             try
             {
@@ -227,8 +188,6 @@ namespace KingOfTheHill.Hubs
                 {
                     _games.TryRemove(gameId, out _);
                     _gamesPlayersCount.TryRemove(gameId, out _);
-                    _cancellationTokens.TryRemove(gameId, out var cts);
-                    cts?.Dispose();
                 }
 
                 await Clients.Caller.SendAsync("ToMainPage"); // возвращаем к списку лобби
@@ -239,7 +198,7 @@ namespace KingOfTheHill.Hubs
             }
         }
 
-        private (Game? game, Player? player) GetCurrentGameAndPlayer()
+        public (Game? game, Player? player) GetCurrentGameAndPlayer()
         {
             var game = _games.FirstOrDefault(pair =>
                 pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value;
@@ -252,7 +211,7 @@ namespace KingOfTheHill.Hubs
 
         // дальше во всех SendAsync просто отрисовываем изменения в игре
 
-        private async Task DrawCard()
+        public async Task DrawCard()
         {
             var (game, player) = GetCurrentGameAndPlayer();
 
@@ -271,7 +230,7 @@ namespace KingOfTheHill.Hubs
             }
         }
 
-        private async Task PassTheMove()
+        public async Task PassTheMove()
         {
             var (game, _) = GetCurrentGameAndPlayer();
             if (game == null) return;
@@ -288,7 +247,7 @@ namespace KingOfTheHill.Hubs
             }
         }
 
-        private async Task UseCardAttachedToPlayer(ICard card, Player? targetPlayer = null)
+        public async Task UseCardAttachedToPlayer(ICard card, Player? targetPlayer = null)
         {
             var (game, player) = GetCurrentGameAndPlayer();
             targetPlayer ??= player;
@@ -307,7 +266,7 @@ namespace KingOfTheHill.Hubs
             }
         }
 
-        private async Task UseCardAttachedToGame(ICard card)
+        public async Task UseCardAttachedToGame(ICard card)
         {
             var (game, _) = GetCurrentGameAndPlayer();
             if (game == null) return;
@@ -324,7 +283,7 @@ namespace KingOfTheHill.Hubs
             }
         }
 
-        private async Task EndMove()
+        public async Task EndMove()
         {
             await PassTheMove();
         }

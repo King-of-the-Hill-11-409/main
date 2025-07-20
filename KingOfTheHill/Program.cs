@@ -1,11 +1,34 @@
+using Newtonsoft.Json;
+using KingOfTheHill;
 using KingOfTheHill.Components;
 using KingOfTheHill.Hubs;
+using Newtonsoft.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddSignalR()
+    .AddNewtonsoftJsonProtocol(options =>
+    {
+        options.PayloadSerializerSettings = new JsonSerializerSettings
+        {
+            // Настройки сериализации Newtonsoft.Json
+            NullValueHandling = NullValueHandling.Ignore,
+            Formatting = Formatting.None,
+            ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+            TypeNameHandling = TypeNameHandling.Auto, // Для поддержки полиморфизма
+            ContractResolver = new DefaultContractResolver
+            {
+                NamingStrategy = new CamelCaseNamingStrategy()
+            }
+        };
+    });
+
+builder.Services.AddSingleton<ILogger, Logger<string>>();
+builder.Services.AddSingleton<IGameProvider, GameProvider>();
 
 var app = builder.Build();
 
@@ -17,7 +40,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.MapHub<MainHub>("/game");
+app.MapHub<MainHub>("/gamehub");
 
 app.UseHttpsRedirection();
 

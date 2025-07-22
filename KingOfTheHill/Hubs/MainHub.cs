@@ -159,10 +159,10 @@ namespace KingOfTheHill.Hubs
                 var timer = new GameTimerService(_logger);
 
                 timer.game = _games[gameId];
-                timer.OnTimerStarted = (g) => Clients.Group(g.ToString()).SendAsync("TimerWasStarted");
+                timer.OnTimerStarted = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("TimerWasStarted");
                 timer.OnTimerUpdate = (g, seconds) => _hubContext.Clients.Group(g.ToString()).SendAsync("UpdateTimer", seconds);
                 timer.OnTimerCompleted = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("StartGame");
-                timer.OnTimerStopped = (g) => Clients.Group(g.ToString()).SendAsync("TimerWasStopped");
+                timer.OnTimerStopped = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("TimerWasStopped");
                 timer.TimerStopCondition = (g) => g?.Players?.Count < 2;
                 timer.TimerCompletedCondition = (g) => g?.Players?.Count < 4;
                 await timer.StartTimer(60);
@@ -218,7 +218,7 @@ namespace KingOfTheHill.Hubs
                     return;
                 }
 
-                lock (game.Players)
+                lock (game)
                 {
                     var player = game.Players.First(p => p.ConnectionId == Context.ConnectionId);
 

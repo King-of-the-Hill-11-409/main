@@ -142,6 +142,7 @@
 
         _hubConnection.On("TimerWasStopped", () =>
         {
+            displayTime = 60;
             _isTimerVisible = false;
             InvokeAsync(StateHasChanged);
         });

@@ -30,28 +30,60 @@
 }
 
 .list__lobby div button {
-    background-color: white;
+    background-color: green;
     padding: 5px;
     color: black;
     border-radius: 5px;
     width: 20%;
 }
 
-.lobby__menu {
-    background-color: rgba(1, 1, 1, 0.5);
+.list__lobby div button:disabled {
+    background-color: slategrey;
+    cursor: not-allowed;
+}
+
+.players__list {
     display: flex;
     flex-direction: column;
     padding: 20px;
     gap: 10px;
 }
 
-.lobby__menu div {
+.players__list div {
     border: 2px solid white;
     border-radius: 3px;
     display: flex;
     justify-content: space-around;
     padding: 10px;
     font-size: 1.2em;
+}
+
+.list__menu {
+    position: fixed;
+    width: 60%;
+    background-color: rgb(76, 81, 74);
+    left: 20%;
+    z-index: 11;
+    padding-bottom: 20px;
+}
+
+.menu__other {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.menu__timer {
+    font-size: 1.1em;
+}
+
+.menu__other button {
+    font-size: 1.1em;
+    padding: 10px;
+    width: 35%;
+    background: red;
+    border-radius: 10px;
 }
 
 .button__lobby {
@@ -67,9 +99,16 @@
     padding: 5px;
     font-size: 1.1em;
     width: 20%;
-    background-color: darkgreen;
+    background-color: green;
     border-radius: 3px;
 }
+
+.list__createButton:disabled {
+    background-color: slategrey;
+    cursor: not-allowed;
+    color: black;
+}
+
 
 .list__refreshButton {
     padding: 5px;
@@ -87,11 +126,11 @@
 .input__block {
     display: flex;
     position: absolute;
-    background-color: darkgray;
+    background-color: rgb(217, 217, 216);
     width: 100%;
     left: 0%;
     border-top-left-radius: 0.5em;
-    top: 90%;
+    top: 95.2%;
     border-top-right-radius: 0.5em;
     justify-content: center;
     padding: 0.2em;
@@ -99,13 +138,24 @@
 
 .input__block input {
     width: 50%;
-    background-color: black;
+    background-color: rgb(76,76,76);
     color: white;
     text-align: center;
     font-size: 1.3em;
     border-radius: 10px;
 }
 
-/* .input__block input:disabled {
-    
-} */
+.input__block input:disabled {
+    color: gray;
+    cursor: not-allowed;
+}
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10;
+}

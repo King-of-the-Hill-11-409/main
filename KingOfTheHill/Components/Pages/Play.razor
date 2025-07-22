@@ -8,6 +8,11 @@
 @inject NavigationManager NavigationManager
 
 
+@if (_isLobbyVisible)
+{
+    <div class="overlay"></div>
+}
+
 <div class="lobby__container">
     <div class="input__block">
         <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
@@ -18,7 +23,7 @@
             <h1>Список Лобби</h1>
         </div>
         <div class="lobbies__list">
-            @if (Lobbies != null)
+            @if (Lobbies.Count != 0)
             {
                 <div class="list__lobby">
                 @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
@@ -32,28 +37,31 @@
                 }
                 </div>
             }
-        }
-        <div class="button__lobby"></div>
+            <div class="button__lobby">
                 <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
                 <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
             </div>
         @if (_isLobbyVisible)
         {
-            <div class="lobby__menu">
-                @for (int i = 0; i < _currentGame!.Players.Count; i++)
-                {
-                    <div>
-                        <p>@(i + 1)</p>
-                        <p>
-                            @_currentGame!.Players[@i].Name;
-                        </p>
-                    </div>
-                }
+            <div class="list__menu">
+                <div class="players__list">
+                    @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                    {
+                        <div>
+                            <p>@(i + 1)</p>
+                            <p>
+                                @_currentGame!.Players[@i].Name;
+                            </p>
+                        </div>
+                    }
+                </div>
+                <div class="menu__other">
+                    <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
+                    <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
+                </div>
             </div>
-            //TODO список игроков
-            <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
-            <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
         }
+        </div>
     </div>
 </div>
 
@@ -62,8 +70,7 @@
 @code
 {
     private string? Username;
-    private Dictionary<Guid, Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
-    //в методах _hubConnection.On... перезаписывать ее по айдишнику
+    private Dictionary<Guid, Game> Lobbies = [];
     private HubConnection? _hubConnection;
     private bool _isLobbyVisible = false;
     private bool _isTimerVisible = false;
@@ -148,6 +155,19 @@
         {
             // когда сделаешь игры словарем
             Lobbies = _games;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On("ToMainPage", () => 
+        {
+            _isLobbyVisible = false;
+            _currentGame = null;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Game>("UpdateAfterLeave", game =>
+        {
+            _currentGame = game;
             InvokeAsync(StateHasChanged);
         });
     }

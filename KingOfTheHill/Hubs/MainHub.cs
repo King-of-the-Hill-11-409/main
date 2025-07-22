@@ -244,6 +244,9 @@ namespace KingOfTheHill.Hubs
 
                     _games.TryRemove(gameId, out _);
                     _gamesPlayersCount.TryRemove(gameId, out _);
+                } else if (count > 0)
+                {
+                    await Clients.Group(gameId.ToString()).SendAsync("UpdateAfterLeave", game);
                 }
 
                 await Clients.Caller.SendAsync("ToMainPage");

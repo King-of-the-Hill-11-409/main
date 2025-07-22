@@ -1,0 +1,26 @@
+﻿@page "/login"
+@using KingOfTheHill.Models
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<h3>Введите имя</h3>
+
+<EditForm Model="@loginRequest" OnValidSubmit="@HandleLogin">
+    <InputText @bind-Value="loginRequest.Username" placeholder="Имя" />
+    <button type="submit">Получить токен</button>
+</EditForm>
+
+@code {
+    private LoginRequest loginRequest = new();
+
+    private async Task HandleLogin()
+    {
+        var response = await Http.PostAsJsonAsync("/api/login", loginRequest);
+        var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
+        Navigation.NavigateTo("/");
+    }
+}

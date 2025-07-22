@@ -11,11 +11,12 @@
 <EditForm Model="@loginRequest" OnValidSubmit="@HandleLogin">
     <InputText @bind-Value="loginRequest.Username" placeholder="Имя" />
     <button type="submit">Получить токен</button>
+    <div class="Error @(_isErrorVisible ? "visible": "hidden")"></div>
 </EditForm>
 
 @code {
     private LoginRequest loginRequest = new();
-
+    private bool _isErrorVisible = false;
     private async Task HandleLogin()
     {
         Console.WriteLine("Requesting JWT token");
@@ -28,13 +29,15 @@
         if (response.IsSuccessStatusCode)
         {
             result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result?.Token);
-            Navigation.NavigateTo("/index");
+            var token = result?.Token;
+
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", token);
+            Navigation.NavigateTo($"/index?token={token}");
         }
 
         else
         {
-            
+            _isErrorVisible = true;
         }
     }
 }

@@ -4,6 +4,9 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using static KingOfTheHill.IGameProvider;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using KingOfTheHill.Attributes;
 
 namespace KingOfTheHill.Hubs
 {
@@ -23,13 +26,13 @@ namespace KingOfTheHill.Hubs
             _hubContext = hubContext;
         }
 
+        
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             _logger.LogInformation($"The user {Context.ConnectionId} was disconnected");
 
             var connectionId = Context.ConnectionId;
             var gameId = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value.GameID;
-
             await LeaveGameAsync(gameId);
 
             await base.OnDisconnectedAsync(exception);

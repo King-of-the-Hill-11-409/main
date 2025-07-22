@@ -10,17 +10,17 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using KingOfTheHill.Models;
+using Microsoft.AspNetCore.SignalR;
+using KingOfTheHill.Attributes;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Конфигурация JWT
 builder.Configuration.AddJsonFile("appsettings.json");
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
 
-// 2. Настройка аутентификации
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -36,12 +36,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
         };
 
-        // Для SignalR через WebSocket
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
-                var token = context.Request.Query["access_token"];
+                var token = context.Request.Query["token"];
+
                 if (!string.IsNullOrEmpty(token))
                     context.Token = token;
                 return Task.CompletedTask;
@@ -51,12 +51,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// 3. Сервисы приложения
 builder.Services
     .AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSignalR()
+builder.Services.AddSignalR((opt) =>
+{
+    opt.AddFilter<AutoRefreshTokenFilter>();
+    })
     .AddNewtonsoftJsonProtocol(opts =>
     {
         opts.PayloadSerializerSettings = new JsonSerializerSettings

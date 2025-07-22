@@ -2,15 +2,21 @@
 @rendermode InteractiveServer
 @using KingOfTheHill
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.IdentityModel.Tokens
 @using Newtonsoft.Json
 @using Newtonsoft.Json.Serialization
 @using static KingOfTheHill.IGameProvider
+@using System.Web
+@using System.IdentityModel.Tokens.Jwt
 @inject NavigationManager NavigationManager
-
+@inject NavigationManager Navigation
+@inject IConfiguration Config
+@inject KingOfTheHill.Services.JwtTokenFactory tokenFactory
+@inject IJSRuntime JS
 
 <div class="lobby__container">
     <div class="input__block">
-        <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
+        <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username" />
     </div>
 
     <div class="lobbies">
@@ -21,22 +27,22 @@
             @if (Lobbies != null)
             {
                 <div class="list__lobby">
-                @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
-                {
+                    @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
+                    {
                         <div>
                             <p>@(i + 1)</p>
                             <p>@(item.Value.Players.Count)/4</p>
                             <p>@item.Value.isStarted</p>
                             <button disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null) @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
                         </div>
-                }
+                    }
                 </div>
             }
-        }
-        <div class="button__lobby"></div>
-                <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
-                <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
-            </div>
+            }
+            <div class="button__lobby"></div>
+            <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
+            <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
+        </div>
         @if (_isLobbyVisible)
         {
             <div class="lobby__menu">
@@ -65,6 +71,7 @@
     private Dictionary<Guid, Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
     //в методах _hubConnection.On... перезаписывать ее по айдишнику
     private HubConnection? _hubConnection;
+    private readonly JwtSecurityTokenHandler _JWTHandler = new JwtSecurityTokenHandler();
     private bool _isLobbyVisible = false;
     private bool _isTimerVisible = false;
     private Game? _currentGame;
@@ -76,13 +83,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+
+        var uri = NavigationManager.ToAbsoluteUri(Navigation.Uri);
+        var token = HttpUtility.ParseQueryString(uri.Query).Get("token");
+
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
-            .AddNewtonsoftJsonProtocol(options =>
-            {
-                options.PayloadSerializerSettings = new JsonSerializerSettings
+        .WithUrl(NavigationManager.ToAbsoluteUri($"/gamehub?token={token}"))
+        .AddNewtonsoftJsonProtocol(options =>
+        {
+            options.PayloadSerializerSettings = new JsonSerializerSettings
                 {
-                    // Настройки сериализации Newtonsoft.Json
+                // Настройки сериализации Newtonsoft.Json
                     NullValueHandling = NullValueHandling.Ignore,
                     Formatting = Formatting.None,
                     ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
@@ -92,15 +103,14 @@
                         NamingStrategy = new CamelCaseNamingStrategy()
                     }
                 };
-            })
-            .Build();
-
+        })
+        .Build();
 
         try
         {
-            Console.WriteLine("Aboba");
             await _hubConnection.StartAsync();
         }
+
         catch (Exception)
         {
 
@@ -150,6 +160,15 @@
             Lobbies = _games;
             InvokeAsync(StateHasChanged);
         });
+
+        _hubConnection.On<string>("ReceiveRefreshedToken", (newToken) =>
+        {
+            JS.InvokeVoidAsync("localStorage.setItem", "authToken", newToken);
+        });
+
+        _hubConnection.On("401", () => {
+            Navigation.NavigateTo("/");
+        });
     }
 
     private async Task RefreshLobbies()
@@ -159,7 +178,8 @@
         try
         {
             await _hubConnection.SendAsync("GetActiveGames");
-        } catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             Console.WriteLine("Exeption on client side on RefreshLobbies", ex);
         }
@@ -206,5 +226,10 @@
         {
             Console.WriteLine("Exeption on client side on LeaveLobby", ex);
         }
+    }
+
+    private string GetRefreshedToken(string expiredToken)
+    {
+        return tokenFactory.RefreshToken(expiredToken);
     }
 }

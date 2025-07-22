@@ -1,4 +1,5 @@
 @page "/index"
+@using System.Web
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
@@ -6,7 +7,7 @@
     <h1 class="index-title">Царь Горы</h1>
 
     <div class="buttons-column">
-        <button @onclick="@(() => Navigation.NavigateTo("/game"))"
+        <button @onclick="@(() => Navigation.NavigateTo($"/game?token={Token}"))"
                 class="nav-button btn-game">
             <span class="button-icon">🎮</span>
             Начать игру
@@ -19,3 +20,13 @@
         </button>
     </div>
 </div>
+
+@code {
+    private string? Token;
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        Token = HttpUtility.ParseQueryString(uri.Query).Get("token");
+    }
+}

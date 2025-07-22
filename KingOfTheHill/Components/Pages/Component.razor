@@ -1,8 +1,9 @@
-﻿@page "/login"
+﻿@page "/"
 @using KingOfTheHill.Models
 @inject HttpClient Http
-@inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@inject NavigationManager Navigation
 @rendermode InteractiveServer
 
 <h3>Введите имя</h3>
@@ -17,10 +18,23 @@
 
     private async Task HandleLogin()
     {
-        var response = await Http.PostAsJsonAsync("/api/login", loginRequest);
-        var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+        Console.WriteLine("Requesting JWT token");
 
-        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result.Token);
-        Navigation.NavigateTo("/");
+        var response = await Http.PostAsJsonAsync(NavigationManager.ToAbsoluteUri("/Login") , loginRequest);
+
+        Console.WriteLine($"Server respone status: {response.StatusCode}");
+
+        LoginResponse? result;
+        if (response.IsSuccessStatusCode)
+        {
+            result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", result?.Token);
+            Navigation.NavigateTo("/index");
+        }
+
+        else
+        {
+            
+        }
     }
 }

@@ -17,6 +17,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.json");
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 
+builder.Services.AddHttpClient();
+builder.Services.AddControllers();
+
 // 2. Настройка аутентификации
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -63,36 +66,30 @@ builder.Services.AddSignalR()
         };
     });
 
+builder.Services.AddLogging();
+builder.Services.AddTransient<ILogger, Logger<string>>();
 builder.Services.AddSingleton<IGameProvider, GameProvider>();
+builder.Services.AddSingleton<JwtTokenFactory>();
 builder.Services.AddTransient<GameTimerService>();
 
-// 4. Сборка приложения
 var app = builder.Build();
 
-// 5. Middleware pipeline
+app.MapControllerRoute(
+    "login",
+    "/{action=Login}",
+    defaults: new { Controller = "Login" }
+    );
+
 app.UseHttpsRedirection()
    .UseStaticFiles()
    .UseAntiforgery()
-   .UseAuthentication()  // Важно: до UseAuthorization!
+   .UseAuthentication()
    .UseAuthorization();
 
-// 6. Маршруты
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
 app.MapHub<MainHub>("/gamehub");
-
-// 7. JWT-эндпоинты
-app.MapPost("/api/login", (LoginRequest request, JwtTokenFactory tokenFactory) =>
-{
-    var user = new User { Name = request.Username };
-    var token = tokenFactory.CreateToken(user);
-
-    return Results.Ok(new LoginResponse
-    {
-        Token = token
-    });
-});
 
 app.MapGet("/api/secret", () => "Только для авторизованных!")
    .RequireAuthorization();

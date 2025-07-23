@@ -1,9 +1,13 @@
 ﻿using KingOfTheHill.Models;
 using KingOfTheHill.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.JSInterop;
 using Newtonsoft.Json.Linq;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace KingOfTheHill.Controllers
 {
@@ -11,7 +15,7 @@ namespace KingOfTheHill.Controllers
     [Route("api/Login")]
     public class LoginController : ControllerBase
     {
-
+        JwtSecurityTokenHandler jWThandler = new JwtSecurityTokenHandler();
         private readonly ILogger _logger;
         private readonly IJSRuntime _jSRuntime;
         private readonly JwtTokenFactory _tokenFactory;
@@ -23,21 +27,44 @@ namespace KingOfTheHill.Controllers
         }
 
         [HttpPost("Login")]
-        public LoginResponse Login([FromBody] LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var user = new User() { Name = request.Username };
 
             var accessToken = _tokenFactory.CreateAccessToken(user);
             var refreshToken = _tokenFactory.CreateRefreshToken(user);
 
-            var response = new LoginResponse();
+            var claims = jWThandler.ReadJwtToken(accessToken).Claims;
 
-            response.AccesToken = accessToken;
-            response.RefreshToken = refreshToken;
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var principal = new ClaimsPrincipal(identity);
+
+            var authProperties = new AuthenticationProperties
+            {
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7),
+                IsPersistent = true,
+                AllowRefresh = true
+            };
+
+            authProperties.StoreTokens(new[]
+{
+                new AuthenticationToken { Name = "accessToken", Value = accessToken },
+                new AuthenticationToken { Name = "refreshToken", Value = refreshToken }
+                    });
+
+            await HttpContext.SignInAsync(
+                  CookieAuthenticationDefaults.AuthenticationScheme,
+                  principal,
+                  authProperties);
 
             _logger.LogInformation($"Token {accessToken} was created for user: {user.Name}, Id: {user.Id}");
 
-            return response;
+            return Ok(new LoginResponse()
+            {
+                AccesToken = accessToken,
+                RefreshToken = refreshToken
+            });
+                
         }
 
         [HttpPost("Refresh")]
@@ -55,8 +82,27 @@ namespace KingOfTheHill.Controllers
                 }
 
                 var accessToken = _tokenFactory.RefreshAccessToken(refreshToken);
+                var authProp = await HttpContext.AuthenticateAsync();
 
-                await _jSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", accessToken);
+                var updateResult = authProp!.Properties!.UpdateTokenValue("accessToken", accessToken);
+
+                if (!updateResult) throw new Exception();
+
+                var claims = jWThandler.ReadJwtToken(accessToken).Claims;
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                var principal = new ClaimsPrincipal(identity);
+
+                var authProperties = new AuthenticationProperties
+                {
+                    ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7),
+                    IsPersistent = true,
+                    AllowRefresh = true
+                };
+
+                await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                authProperties);
 
                 return Ok(new RefreshTokenResponse()
                 {

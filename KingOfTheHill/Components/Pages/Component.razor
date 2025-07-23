@@ -33,9 +33,6 @@
             var accessToken = result?.AccesToken;
             var refreshToken = result?.RefreshToken;
 
-            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", accessToken);
-            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "refreshToken", refreshToken);
-
             Navigation.NavigateTo($"/index?token={accessToken}");
         }
 

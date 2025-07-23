@@ -95,7 +95,7 @@
 
         try
         {
-            Token = await tokenService.GetTokenAsync();
+            Token = await tokenService.GetAccessTokenAsync();
         }
         catch (InvalidOperationException)
         {

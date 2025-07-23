@@ -12,6 +12,9 @@ using System.Text;
 using KingOfTheHill.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,44 +23,75 @@ var jwtSettings = builder.Configuration.GetSection("Jwt");
 
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.Path = "/"; // Важно для единообрадия!
+});
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddCookie(options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.Cookie.Name = "auth_cookie";
+    options.Cookie.SameSite = SameSiteMode.None;
+
+    options.Events = new CookieAuthenticationEvents
     {
-        options.TokenValidationParameters = new TokenValidationParameters
+        OnValidatePrincipal = async context =>
         {
-            ValidateIssuer = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            ValidateAudience = true,
-            ValidAudience = jwtSettings["Audience"],
-            ValidateLifetime = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings["Key"]!)),
-            ValidateIssuerSigningKey = true,
-        };
-
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
+            var accessToken = context.Properties.GetTokenValue("access_token");
+            if (string.IsNullOrEmpty(accessToken))
             {
-                var token = context.Request.Query["token"];
-
-                if (!string.IsNullOrEmpty(token))
-                    context.Token = token;
-                return Task.CompletedTask;
-            },
-
-            OnAuthenticationFailed = context =>
-            {
-                if (context.Exception is SecurityTokenExpiredException)
-                {
-                    context.Response.Headers.Add("Token-Expired", "true");
-                }
-
-                return Task.CompletedTask;
+                context.RejectPrincipal();
+                await context.HttpContext.SignOutAsync();
             }
-        };
-    });
+        },
+    };
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidateAudience = true,
+        ValidAudience = jwtSettings["Audience"],
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero,
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(jwtSettings["Key"]!)),
+        ValidateIssuerSigningKey = true,
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Для SignalR через query string
+            if (context.Request.Path.StartsWithSegments("/hub") &&
+                context.Request.Query.TryGetValue("token", out var token))
+            {
+                context.Token = token;
+            }
+            return Task.CompletedTask;
+        },
+
+        OnAuthenticationFailed = context =>
+        {
+            if (context.Exception is SecurityTokenExpiredException)
+            {
+                context.Response.Headers.Append("Token-Expired", "true");
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
 
 builder.Services.AddAuthorization();
 

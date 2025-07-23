@@ -49,7 +49,7 @@ namespace KingOfTheHill.Services
                 {
                     try
                     {
-                        return await _tokenService.GetTokenAsync();
+                        return await _tokenService.GetAccessTokenAsync();
                     }
                     catch (SecurityTokenException)
                     {

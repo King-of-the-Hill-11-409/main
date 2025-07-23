@@ -8,7 +8,7 @@ namespace KingOfTheHill.Services
 {
     public interface ITokenService
     {
-        Task<string> GetTokenAsync();
+        Task<string> GetAccessTokenAsync();
         Task<string> RefreshTokenASync();
     }
 
@@ -27,11 +27,21 @@ namespace KingOfTheHill.Services
             _logger = logger;
         }
 
-        public async Task<string> GetTokenAsync()
+        public async Task<string> GetAccessTokenAsync()
         {
             _logger.LogInformation("Getting token");
 
-            return await _httpContextAccessor!.HttpContext!.GetTokenAsync("access_token")
+            var authResult = await _httpContextAccessor!.HttpContext!.AuthenticateAsync();
+            return authResult?.Properties?.GetTokenValue("accessToken")
+                ?? throw new InvalidOperationException("Token was not found");
+        }
+
+        public async Task<string> GetRefreshTokenAsync()
+        {
+            _logger.LogInformation("Getting token");
+
+            var authResult = await _httpContextAccessor!.HttpContext!.AuthenticateAsync();
+            return authResult?.Properties?.GetTokenValue("refreshToken")
                 ?? throw new InvalidOperationException("Token was not found");
         }
 
@@ -39,7 +49,9 @@ namespace KingOfTheHill.Services
         {
             _logger.LogInformation("Refreshing acces token");
 
-            var refreshToken = await _httpContextAccessor!.HttpContext!.GetTokenAsync("refreshToken");
+            var authResult = await _httpContextAccessor!.HttpContext!.AuthenticateAsync();
+
+            var refreshToken = authResult?.Properties?.GetTokenValue("refreshToken");
 
             if (string.IsNullOrEmpty(refreshToken))
             {
@@ -61,5 +73,6 @@ namespace KingOfTheHill.Services
 
             return result!.AccesToken;
         }
+
     }
 }

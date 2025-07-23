@@ -1,6 +1,7 @@
 @page "/game"
 @rendermode InteractiveServer
 @using KingOfTheHill
+@using KingOfTheHill.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.IdentityModel.Tokens
@@ -14,7 +15,9 @@
 @inject IConfiguration Config
 @inject KingOfTheHill.Services.JwtTokenFactory tokenFactory
 @inject IJSRuntime JS
-@attribute [Authorize]
+@inject HttpClient Http
+@inject ITokenService tokenService
+@inherits SignalRConnectionManager
 
 <div class="lobby__container">
     <div class="input__block">
@@ -70,6 +73,7 @@
 @code
 {
     private string? Username;
+    private string? Token;
     private Dictionary<Guid, Game>? Lobbies; // Через Dictionary надо сделать и при изменении игры или чего то еще
     //в методах _hubConnection.On... перезаписывать ее по айдишнику
     private HubConnection? _hubConnection;
@@ -85,53 +89,48 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await base.OnInitializedAsync();
 
-        var uri = NavigationManager.ToAbsoluteUri(Navigation.Uri);
-        var token = HttpUtility.ParseQueryString(uri.Query).Get("token");
-
-        _hubConnection = new HubConnectionBuilder()
-        .WithUrl(NavigationManager.ToAbsoluteUri($"/gamehub?token={token}"))
-        .AddNewtonsoftJsonProtocol(options =>
-        {
-            options.PayloadSerializerSettings = new JsonSerializerSettings
-                {
-                // Настройки сериализации Newtonsoft.Json
-                    NullValueHandling = NullValueHandling.Ignore,
-                    Formatting = Formatting.None,
-                    ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-                    TypeNameHandling = TypeNameHandling.Auto, // Для поддержки полиморфизма
-                    ContractResolver = new DefaultContractResolver
-                    {
-                        NamingStrategy = new CamelCaseNamingStrategy()
-                    }
-                };
-        })
-        .Build();
+        if (_hubConnection is null) _hubConnection = base.Build();
 
         try
         {
-            await _hubConnection.StartAsync();
+            Token = await tokenService.GetTokenAsync();
         }
-
-        catch (Exception)
+        catch (InvalidOperationException)
         {
-
+            try
+            {
+                Token = await tokenService.RefreshTokenASync();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Navigation.NavigateTo("/");
+            }
         }
 
-        _hubConnection.On<Game>("JoinGameLobby", (game) =>
+
+        var token = _JWTHandler.ReadJwtToken(Token);
+        
+        foreach (var claim in token.Claims)
+        {
+            Console.WriteLine($"{claim.Type}: {claim.Value}");
+        }
+
+        _hubConnection!.On<Game>("JoinGameLobby", (game) =>
         {
             _isLobbyVisible = true;
             _currentGame = game;
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On<Game>("GameCreated", (game) =>
+        _hubConnection!.On<Game>("GameCreated", (game) =>
         {
             Lobbies?.Add(game.GameID, game);
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On<int>("UpdateTimer", (seconds) =>
+        _hubConnection!.On<int>("UpdateTimer", (seconds) =>
         {
             _isTimerVisible = true;
             displayTime = seconds;
@@ -139,36 +138,36 @@
 
         });
 
-        _hubConnection.On("TimerWasStarted", () =>
+        _hubConnection!.On("TimerWasStarted", () =>
         {
             _isTimerVisible = true;
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On("TimerWasStopped", () =>
+        _hubConnection!.On("TimerWasStopped", () =>
         {
             _isTimerVisible = false;
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On("StartGame", () =>
+        _hubConnection!.On("StartGame", () =>
         {
             //
         });
 
-        _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
+        _hubConnection!.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
         {
             // когда сделаешь игры словарем
             Lobbies = _games;
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On<string>("ReceiveRefreshedToken", (newToken) =>
+        _hubConnection!.On<string>("ReceiveRefreshedToken", (newToken) =>
         {
             JS.InvokeVoidAsync("localStorage.setItem", "authToken", newToken);
         });
 
-        _hubConnection.On("401", () => {
+        _hubConnection!.On("401", () => {
             Navigation.NavigateTo("/");
         });
     }
@@ -228,10 +227,5 @@
         {
             Console.WriteLine("Exeption on client side on LeaveLobby", ex);
         }
-    }
-
-    private string GetRefreshedToken(string expiredToken)
-    {
-        return tokenFactory.RefreshToken(expiredToken);
     }
 }

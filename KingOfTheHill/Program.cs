@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Text;
 using KingOfTheHill.Models;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 if (!string.IsNullOrEmpty(token))
                     context.Token = token;
                 return Task.CompletedTask;
+            },
+
+            OnAuthenticationFailed = context =>
+            {
+                if (context.Exception is SecurityTokenExpiredException)
+                {
+                    context.Response.Headers.Add("Token-Expired", "true");
+                }
+
+                return Task.CompletedTask;
             }
         };
     });
@@ -63,14 +74,39 @@ builder.Services.AddSignalR()
             ContractResolver = new CamelCasePropertyNamesContractResolver()
         };
     });
-
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddLogging();
+builder.Services.AddSingleton<IHubConnectionBuilder, HubConnectionBuilder>();
 builder.Services.AddTransient<ILogger, Logger<string>>();
 builder.Services.AddSingleton<IGameProvider, GameProvider>();
 builder.Services.AddSingleton<JwtTokenFactory>();
 builder.Services.AddTransient<GameTimerService>();
+builder.Services.AddScoped<SignalRConnectionManager>();
+builder.Services.AddTransient<ITokenService, TokenService>();
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    await next();
+
+    if (context.Response.Headers.ContainsKey("Token-Expired"))
+    {
+        context.Response.Headers.Remove("Token-Expired");
+        var tokenService = context.RequestServices.GetRequiredService<ITokenService>();
+        
+        try
+        {
+            await tokenService.RefreshTokenASync();
+            context.Response.Redirect(context.Request.Path);
+        }
+        catch
+        {
+            context.Response.Redirect("/");
+        }
+
+    }
+});
 
 app.MapControllerRoute(
     "login",

@@ -7,5 +7,17 @@ public class LoginRequest
 
 public class LoginResponse
 {
-    public string Token { get; set; } = string.Empty;
+    public string AccesToken { get; set; } = null!;
+    public string RefreshToken { get; set; } = null!;
+}
+
+public class RefreshTokenResponse
+{
+    public string AccesToken { get; set; } = null!;
+    public string RefreshToken { get; set; } = null!;
+}
+
+public class RefreshTokenRequest
+{ 
+    public string RefreshToken { get; set; } = null!;
 }

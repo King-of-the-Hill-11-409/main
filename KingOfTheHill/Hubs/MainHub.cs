@@ -6,7 +6,6 @@ using System.Text.Json;
 using static KingOfTheHill.IGameProvider;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-
 namespace KingOfTheHill.Hubs
 {
 

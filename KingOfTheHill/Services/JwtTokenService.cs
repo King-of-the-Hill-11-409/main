@@ -9,14 +9,16 @@ namespace KingOfTheHill.Services;
 public class JwtTokenFactory
 {
     private readonly IConfiguration _config;
+    private readonly ILogger _logger;
     private JwtSecurityTokenHandler JWTHandler= new JwtSecurityTokenHandler();
 
-    public JwtTokenFactory(IConfiguration config)
+    public JwtTokenFactory(IConfiguration config, ILogger logger)
     {
         _config = config;
+        _logger = logger;
     }
 
-    public string CreateToken(User user)
+    public string CreateToken(User user, DateTime time)
     {
         var claims = new List<Claim>
         {
@@ -32,7 +34,7 @@ public class JwtTokenFactory
             issuer: _config["Jwt:Issuer"],
             audience: _config["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: time,
             signingCredentials: new SigningCredentials(
                 key,
                 SecurityAlgorithms.HmacSha256)
@@ -41,7 +43,7 @@ public class JwtTokenFactory
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public string RefreshToken(string expiredToken)
+    public string RefreshToken(string expiredToken, DateTime time)
     {
         var handler = new JwtSecurityTokenHandler();
         var oldToken = handler.ReadJwtToken(expiredToken);
@@ -55,11 +57,32 @@ public class JwtTokenFactory
             issuer: _config["Jwt:Issuer"],
             audience: _config["Jwt:Audience"],
             claims: newClaims,
-            expires: DateTime.UtcNow.AddMinutes(15),
+            expires: time,
             signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(newToken);
+    }
+
+    public string CreateAccessToken(User user)
+    {
+        _logger.LogInformation("creating access token");
+
+        return CreateToken(user, DateTime.UtcNow.AddMinutes(1));
+    }
+
+    public string RefreshAccessToken(string token)
+    {
+        _logger.LogInformation("refreshing acces token");
+
+        return RefreshToken(token, DateTime.UtcNow.AddMinutes(1));
+    }
+
+    public string CreateRefreshToken(User user)
+    {
+        _logger.LogInformation("creating refresh token");
+
+        return CreateToken(user, DateTime.UtcNow.AddMinutes(3));
     }
 
     public bool IsTokenValid(string token, out Exception? ex)
@@ -80,6 +103,11 @@ public class JwtTokenFactory
             ex = null;
             return false;
         }
+    }
+
+    public IEnumerable<Claim> GetClaim(string token)
+    {
+        return JWTHandler.ReadJwtToken(token).Claims;
     }
 
     public TokenValidationParameters GetTokenValidationsParameters()

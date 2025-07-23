@@ -6,10 +6,11 @@ using System.Text.Json;
 using static KingOfTheHill.IGameProvider;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using KingOfTheHill.Attributes;
 
 namespace KingOfTheHill.Hubs
 {
+
+    [Authorize]
     public class MainHub : Hub
     {
 

@@ -1,6 +1,7 @@
 @page "/game"
 @rendermode InteractiveServer
 @using KingOfTheHill
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.IdentityModel.Tokens
 @using Newtonsoft.Json
@@ -13,6 +14,7 @@
 @inject IConfiguration Config
 @inject KingOfTheHill.Services.JwtTokenFactory tokenFactory
 @inject IJSRuntime JS
+@attribute [Authorize]
 
 <div class="lobby__container">
     <div class="input__block">

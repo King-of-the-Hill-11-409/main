@@ -11,7 +11,6 @@ using System.Security.Claims;
 using System.Text;
 using KingOfTheHill.Models;
 using Microsoft.AspNetCore.SignalR;
-using KingOfTheHill.Attributes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,10 +54,7 @@ builder.Services
     .AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSignalR((opt) =>
-{
-    opt.AddFilter<AutoRefreshTokenFilter>();
-    })
+builder.Services.AddSignalR()
     .AddNewtonsoftJsonProtocol(opts =>
     {
         opts.PayloadSerializerSettings = new JsonSerializerSettings

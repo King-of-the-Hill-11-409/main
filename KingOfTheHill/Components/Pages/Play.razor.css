@@ -1,6 +1,4 @@
 .lobby__container {
-    background-image: url("images/Green.png");
-    background-size: cover;
     height: 100%;
     color: white;
     padding: 20px;
@@ -158,4 +156,71 @@
     height: 100%;
     background: rgba(0, 0, 0, 0.7);
     z-index: 10;
+}
+
+.top__players {
+    position: absolute;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    padding-top: 30px;
+}
+
+.player__cards {
+    display: flex;
+    flex-direction: row;
+}
+
+.card__back {
+    margin-right: -20px;
+}
+
+.card__back img {
+    height: 80px;
+}
+
+.player__avatar {
+    font-size: 1.5em;
+    text-align: center;
+}
+
+.player__name {
+    color: white;
+    font-size: 1.3em;
+    text-align: center;
+}
+
+.player__hand {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    top: 60%;
+    width: 100%;
+    justify-content: center;
+}
+
+.hand__card {
+    margin-right: -20px;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.hand__card:hover {
+    transform: translateY(-20px);
+}
+
+.hand__card img {
+    height: 150px;
+}
+
+.bottom__panel {
+    position: absolute;
+    background-color: rgb(217, 217, 217);
+    width: 100%;
+    padding: 20px;
+    display: flex;
+    justify-content: space-around;
+    top: 90.6%;
+    font-size: 1.1em;
 }

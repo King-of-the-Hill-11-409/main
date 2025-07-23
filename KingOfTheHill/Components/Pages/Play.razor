@@ -7,63 +7,126 @@
 @using static KingOfTheHill.IGameProvider
 @inject NavigationManager NavigationManager
 
-
-@if (_isLobbyVisible)
+@if (_currentGame is not null && _currentGame.isStarted)
 {
-    <div class="overlay"></div>
-}
-
-<div class="lobby__container">
-    <div class="input__block">
-        <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
-    </div>
-
-    <div class="lobbies">
-        <div class="lobbies__title">
-            <h1>Список Лобби</h1>
-        </div>
-        <div class="lobbies__list">
-            @if (Lobbies.Count != 0)
+<div class="game__container">
+    <div class="top__players">
+        @foreach (var player in _currentGame.Players)
+        {
+            @if (player.Id != _currentGame.CurrentPlayer)
             {
-                <div class="list__lobby">
-                @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
-                {
-                        <div>
-                            <p>@(i + 1)</p>
-                            <p>@(item.Value.Players.Count)/4</p>
-                            <p>@item.Value.isStarted</p>
-                            <button disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null) @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
-                        </div>
-                }
+                <div class="player__block">
+                    <h4 class="player__name">@player.Name</h4>
+                    <div class="player__avatar">👨🏿‍🦽</div>
+                    <div class="player__cards">
+                        @foreach (var card in player.Deck)
+                        {
+                            <div class="card__back">
+                                <img src="images/BackSide.png"/>
+                            </div>
+                        }
+                    </div>
                 </div>
             }
-            <div class="button__lobby">
-                <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
-                <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
-            </div>
-        @if (_isLobbyVisible)
-        {
-            <div class="list__menu">
-                <div class="players__list">
-                    @for (int i = 0; i < _currentGame!.Players.Count; i++)
-                    {
-                        <div>
-                            <p>@(i + 1)</p>
-                            <p>
-                                @_currentGame!.Players[@i].Name;
-                            </p>
-                        </div>
-                    }
-                </div>
-                <div class="menu__other">
-                    <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
-                    <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
-                </div>
-            </div>
         }
+    </div>
+
+    <div class="player__hand">
+        @foreach (var card in _currentPlayer!.Deck)
+        {
+            @if (card is PositiveCard pCard)
+            {
+                <div class="hand__card">
+                    <img src="images/Positive_@(pCard.Value).png"/>
+                </div>
+            } else if (card is NegativeCard nCard)
+            {
+                <div class="hand__card">
+                    <img src="images/Negative_@(nCard.Value).png"/>
+                </div>
+            } else if (card is SpecialCard sCard)
+            {
+                @if (sCard.Value == SpecialCommand.Silence)
+                {
+                    <div class="hand__card">
+                        <img src="images/Block.png"/>
+                    </div>
+                } else if (sCard.Value == SpecialCommand.ChangeMove)
+                {
+                    <div class="hand__card">
+                        <img src="images/Reverse.png"/>
+                    </div>
+                }
+            }
+        }
+    </div>
+    <div class="bottom__panel">
+        <div class="haveCombo__panel">Есть ли у вас комбо: @(_currentPlayer.HasCombo ? "Да!" : "Нет😢")</div>
+
+        <div class="score__panel">
+            <p>Ваш счёт: <span>@_currentPlayer.Score</span></p>
         </div>
     </div>
 </div>
+} else
+{
+    @if (_isLobbyVisible)
+    {
+        <div class="overlay"></div>
+    }
+
+    <div class="lobby__container">
+        <div class="input__block">
+            <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
+        </div>
+
+        <div class="lobbies">
+            <div class="lobbies__title">
+                <h1>Список Лобби</h1>
+            </div>
+            <div class="lobbies__list">
+                @if (Lobbies.Count != 0)
+                {
+                    <div class="list__lobby">
+                    @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
+                    {
+                            <div @key="item.Key">
+                                <p>@(i + 1)</p>
+                                <p>@(item.Value.Players.Count)/4</p>
+                                <p>@item.Value.isStarted</p>
+                                <button disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null || item.Value.Players.Count == 4) @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
+                            </div>
+                    }
+                    </div>
+                }
+                <div class="button__lobby">
+                    <button disabled=@(string.IsNullOrWhiteSpace(Username)) class="list__createButton" @onclick="@(() => CreateLobby())">Создать лобби</button>
+                    <button class="list__refreshButton" @onclick="@(() => RefreshLobbies())">Обновить список лобби</button>
+                </div>
+            @if (_isLobbyVisible)
+            {
+                <div class="list__menu">
+                    <div class="players__list">
+                        @for (int i = 0; i < _currentGame!.Players.Count; i++)
+                        {
+                            <div>
+                                <p>@(i + 1)</p>
+                                <p>
+                                    @_currentGame!.Players[@i].Name;
+                                </p>
+                            </div>
+                        }
+                    </div>
+                    <div class="menu__other">
+                        <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
+                        <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
+                    </div>
+                </div>
+            }
+            </div>
+        </div>
+    </div>
+}
 
 
 
@@ -75,11 +138,9 @@
     private bool _isLobbyVisible = false;
     private bool _isTimerVisible = false;
     private Game? _currentGame;
-
-    private int secondsRemaining = 60;
-    private bool isRunning = false;
-    private Timer? timer;
     private int displayTime = 60;
+    private Guid? _currentPlayerId;
+    private Player? _currentPlayer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -147,15 +208,22 @@
             InvokeAsync(StateHasChanged);
         });
 
-        _hubConnection.On("StartGame", () =>
+        _hubConnection.On<Game>("StartGame", (game) =>
         {
-            //
+            _currentGame = game;
+            _currentPlayer = _currentGame.Players.Find(p => p.Id == _currentPlayerId);
+            InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.On<Dictionary<Guid, Game>>("RefreshGamesList", (Dictionary<Guid, Game> _games) =>
         {
-            // когда сделаешь игры словарем
             Lobbies = _games;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Guid, Game>("RenderAfterJoinUser", (gameId, game) => 
+        {
+            Lobbies[gameId] = game;
             InvokeAsync(StateHasChanged);
         });
 
@@ -169,6 +237,12 @@
         _hubConnection.On<Game>("UpdateAfterLeave", game =>
         {
             _currentGame = game;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Guid>("DeleteGameFromLobby", gameId =>
+        {
+            Lobbies?.Remove(gameId);
             InvokeAsync(StateHasChanged);
         });
     }
@@ -190,9 +264,11 @@
     {
         if (_hubConnection is null) return;
 
+        _currentPlayerId = Guid.NewGuid();
+
         try
         {
-            await _hubConnection.SendAsync("JoinGameAsync", Username, gameId);
+            await _hubConnection.SendAsync("JoinGameAsync", _currentPlayerId, Username, gameId);
         }
         catch (Exception ex)
         {
@@ -204,9 +280,11 @@
     {
         if (_hubConnection is null) return;
 
+        _currentPlayerId = Guid.NewGuid();
+
         try
         {
-            await _hubConnection.SendAsync("CreateGameAsync", Username);
+            await _hubConnection.SendAsync("CreateGameAsync", _currentPlayerId, Username);
         }
         catch (Exception ex)
         {
@@ -228,4 +306,6 @@
             Console.WriteLine("Exeption on client side on LeaveLobby", ex);
         }
     }
+
+    @* private async Task  *@
 }

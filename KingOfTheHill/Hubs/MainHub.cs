@@ -44,7 +44,7 @@ namespace KingOfTheHill.Hubs
         {
             _logger.LogInformation($"Sending all active games to {Context.ConnectionId}");
 
-            await Clients.All.SendAsync("RefreshGamesList", _games.ToDictionary());
+            await Clients.Caller.SendAsync("RefreshGamesList", _games.ToDictionary());
         }
 
         /// <summary>
@@ -52,18 +52,17 @@ namespace KingOfTheHill.Hubs
         /// </summary>
         /// <param name="playerName">Player name who calls this method</param>
         /// <returns>Task</returns>
-        public async Task CreateGameAsync(string playerName) // Создается лобби
+        public async Task CreateGameAsync(Guid playerId, string username) // Создается лобби
         {
             try
             {
-                var player = new Player()
+                Player player = new()
                 {
                     ConnectionId = Context.ConnectionId,
-                    Name = playerName
-
+                    Name = username,
+                    Id = playerId,
                 };
 
-                player.Deck.Add(new PositiveCard(5));
                 var game = new Game()
                 {
                     CurrentPlayer = player.Id,
@@ -100,17 +99,18 @@ namespace KingOfTheHill.Hubs
         /// <param name="playerName">Player name who calls the method</param>
         /// <param name="gameId">Game ID ih which player consist</param>
         /// <returns>Task</returns>
-        public async Task JoinGameAsync(string playerName, Guid gameId)
+        public async Task JoinGameAsync(Guid playerId, string username, Guid gameId)
         {
             try
             {
                 if (_games.ContainsKey(gameId) && _gamesPlayersCount[gameId] < 4)
                 {
-                    var player = new Player()
+                    Player player = new()
                     {
                         ConnectionId = Context.ConnectionId,
-                        Name = playerName,
-                        GameId = gameId
+                        Name = username,
+                        Id = playerId,
+                        GameId = gameId,
                     };
 
                     if (_games[gameId].isStarted) player.isFreezed = true;
@@ -124,6 +124,8 @@ namespace KingOfTheHill.Hubs
                     _logger.LogInformation($"User {Context.ConnectionId} was joined game {gameId}");
 
                     await Groups.AddToGroupAsync(Context.ConnectionId, gameId.ToString());
+
+                    await Clients.All.SendAsync("RenderAfterJoinUser", gameId, _games[gameId]);
 
                     await Clients.Group(gameId.ToString())
                         .SendAsync("JoinGameLobby", _games[gameId]);
@@ -161,7 +163,17 @@ namespace KingOfTheHill.Hubs
                 timer.game = _games[gameId];
                 timer.OnTimerStarted = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("TimerWasStarted");
                 timer.OnTimerUpdate = (g, seconds) => _hubContext.Clients.Group(g.ToString()).SendAsync("UpdateTimer", seconds);
-                timer.OnTimerCompleted = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("StartGame");
+                timer.OnTimerCompleted = (g) =>
+                {
+                    for (int i = 0; i < _games[gameId].Players.Count; i++)
+                    {
+                        Player player = _games[gameId].Players[i];
+                        _gameProvider.DrawCard(ref player);
+                        _games[gameId].Players[i] = player;
+                    }
+                    _games[gameId].isStarted = true;
+                    return _hubContext.Clients.Group(g.ToString()).SendAsync("StartGame", _games[gameId]);
+                };
                 timer.OnTimerStopped = (g) => _hubContext.Clients.Group(g.ToString()).SendAsync("TimerWasStopped");
                 timer.TimerStopCondition = (g) => g?.Players?.Count < 2;
                 timer.TimerCompletedCondition = (g) => g?.Players?.Count < 4;
@@ -218,10 +230,9 @@ namespace KingOfTheHill.Hubs
                     return;
                 }
 
+                var player = game.Players.First(p => p.ConnectionId == Context.ConnectionId);
                 lock (game)
                 {
-                    var player = game.Players.First(p => p.ConnectionId == Context.ConnectionId);
-
                     if (player is null)
                     {
                         _logger.LogInformation($"While leaving game {gameId} the user {Context.ConnectionId} was not found");
@@ -244,8 +255,13 @@ namespace KingOfTheHill.Hubs
 
                     _games.TryRemove(gameId, out _);
                     _gamesPlayersCount.TryRemove(gameId, out _);
-                } else if (count > 0)
+
+                    await Clients.All.SendAsync("DeleteGameFromLobby", gameId);
+                }
+                else if (count > 0)
                 {
+                    if (game.CurrentPlayer == player.Id)
+                        game.CurrentPlayer = game.Players[0].Id;
                     await Clients.Group(gameId.ToString()).SendAsync("UpdateAfterLeave", game);
                 }
 

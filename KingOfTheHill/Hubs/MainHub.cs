@@ -316,13 +316,15 @@ namespace KingOfTheHill.Hubs
         /// <returns>Task</returns>
         public async Task PassTheMove()
         {
-            var (game, _) = GetCurrentGameAndPlayer();
-            if (game == null) return;
+            var (game, player) = GetCurrentGameAndPlayer();
+            if (game == null || player == null) return;
 
             _logger.LogInformation($"The player {Context.ConnectionId} is passing the move");
 
             try
             {
+                player.isSkipTurn = false;
+                
                 _gameProvider.PassTheMove(ref game);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
             }
@@ -352,39 +354,27 @@ namespace KingOfTheHill.Hubs
             try
             {
                 ICard card = player.Deck[cardIndex];
-                var updatedPlayer = new Player()
-                {
-                    ConnectionId = player.ConnectionId,
-                    Id = player.Id,
-                    GameId = player.GameId,
-                    isFreezed = player.isFreezed,
-                    isSkipTurn = player.isSkipTurn,
-                    Name = player.Name,
-                    Deck = [.. player.Deck.Where(c => c != card)],
-                    Score = player.Score,
-                    HasCombo = player.HasCombo,
-                };
+                player.Deck = [.. player.Deck.Where(c => c != card)];
 
                 switch (card)
                 {
                     case PositiveCard positiveCard:
-                        updatedPlayer.Score = positiveCard.Invoke(updatedPlayer);
+                        player.Score = positiveCard.Invoke(player);
                         break;
                     case NegativeCard negativeCard:
                         int Score = negativeCard.Invoke(targetPlayer);
                         targetPlayer.Score = Score < 0 ? targetPlayer.Score : Score;
                         break;
                     case BonusCard bonusCard:
-                        updatedPlayer.Score = bonusCard.Invoke(updatedPlayer);
+                        player.Score = bonusCard.Invoke(player);
                         break;
                 }
 
-                game.Players[game.Players.FindIndex(p => p.Id == updatedPlayer.Id)] = updatedPlayer;
                 if (targetPlayer.Id != player.Id)
                     game.Players[game.Players.FindIndex(p => p.Id == targetPlayer.Id)] = targetPlayer;
-                _games[game.GameID] = game;
                 
-                await Clients.Group(game.GameID.ToString()).SendAsync("ChangePlayerState", targetPlayer);
+                await DrawCard();
+                await EndMove();
             }
             catch (Exception ex)
             {
@@ -398,16 +388,20 @@ namespace KingOfTheHill.Hubs
         /// </summary>
         /// <param name="card">Card</param>
         /// <returns>Task</returns>
-        public async Task UseCardAttachedToGame(ICard card)
+        public async Task UseCardAttachedToGame(int cardIndex)
         {
-            var (game, _) = GetCurrentGameAndPlayer();
-            if (game == null) return;
+            var (game, player) = GetCurrentGameAndPlayer();
+            if (game == null || player == null) return;
 
             _logger.LogInformation($"The player {Context.ConnectionId} is using card attached to game");
             try
             {
+                ICard card = player.Deck[cardIndex];
+                player.Deck = [.. player.Deck.Where(c => c != card)];
                 _gameProvider.UseCardAttachedToGame(card, ref game);
-                await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
+
+                await DrawCard();
+                await EndMove();
             }
             catch (Exception ex)
             {

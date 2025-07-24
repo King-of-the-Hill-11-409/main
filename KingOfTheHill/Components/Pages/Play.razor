@@ -7,6 +7,8 @@
 @using static KingOfTheHill.IGameProvider
 @inject NavigationManager NavigationManager
 
+<div class="logo__backgorund"></div>
+
 @if (_currentGame is not null && _currentGame.isStarted)
 {
 <div class="game__container">
@@ -187,6 +189,7 @@
     private List<int> _comboHand = [];
     private Player? _selectedPlayer;
     private bool _warning = false;
+    private bool _isSkipped = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -301,6 +304,18 @@
         _hubConnection.On<Game>("ChangeGameState", game => 
         {
             _currentGame = game;
+            _currentPlayer = game.Players.Find(p => p.Id == _currentPlayerId);
+            if (_currentPlayer!.isSkipTurn)
+            {
+                _isSkipped = true;
+                try
+                {
+                    InvokeAsync(async () => await _hubConnection.SendAsync("EndMove"));
+                } catch (Exception ex)
+                {
+                    Console.WriteLine("Exeption on client side on ChangeGameState", ex);
+                }
+            }
             InvokeAsync(StateHasChanged);
         });
     }
@@ -423,22 +438,5 @@
             }
             _comboHand.Remove(cardIndex);
         }
-
-        try
-        {
-            await _hubConnection.SendAsync("DrawCard");
-        } catch (Exception ex)
-        {
-            Console.WriteLine("Exeption on client side on DoMovePlayer DrawCard", ex);
-        }
-
-        try
-        {
-            await _hubConnection.SendAsync("EndMove");
-        } catch (Exception ex)
-        {
-            Console.WriteLine("Exeption on client side on DoMovePlayer EndMove", ex);
-        }
-
     }
 }

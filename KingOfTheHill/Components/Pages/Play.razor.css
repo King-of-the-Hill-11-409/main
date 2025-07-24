@@ -277,3 +277,16 @@
 .player__selected {
     box-shadow: 0 0 10px 5px rgb(255 255 255 / 70%);
 }
+
+.logo__backgorund {
+    background-image: url("images/LogoBackground.png");
+    position: absolute;
+    width: 50%;
+    height: 30%;
+    top: 40%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.4;
+    left: 25%;
+}

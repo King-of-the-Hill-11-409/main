@@ -177,19 +177,19 @@
 
 @code
 {
-    private string? Username;
-    private Dictionary<Guid, Game> Lobbies = [];
-    private HubConnection? _hubConnection;
-    private bool _isLobbyVisible = false;
-    private bool _isTimerVisible = false;
-    private Game? _currentGame;
-    private int displayTime = 60;
-    private Guid? _currentPlayerId;
-    private Player? _currentPlayer;
-    private List<int> _comboHand = [];
-    private Player? _selectedPlayer;
-    private bool _warning = false;
-    private bool _isSkipped = false;
+    public string? Username;
+    public Dictionary<Guid, Game> Lobbies = [];
+    public HubConnection? _hubConnection;
+    public bool _isLobbyVisible = false;
+    public bool _isTimerVisible = false;
+    public Game? _currentGame;
+    public int displayTime = 60;
+    public Guid? _currentPlayerId;
+    public Player? _currentPlayer;
+    public List<int> _comboHand = [];
+    public Player? _selectedPlayer;
+    public bool _warning = false;
+    public bool _isSkipped = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -320,7 +320,7 @@
         });
     }
 
-    private async Task RefreshLobbies()
+    public async Task RefreshLobbies()
     {
         if (_hubConnection is null) return;
 
@@ -333,7 +333,7 @@
         }
     }
 
-    private async Task JoinLobby(Guid gameId)
+    public async Task JoinLobby(Guid gameId)
     {
         if (_hubConnection is null) return;
 
@@ -349,7 +349,7 @@
         }
     }
 
-    private async Task CreateLobby()
+    public async Task CreateLobby()
     {
         if (_hubConnection is null) return;
 
@@ -366,7 +366,7 @@
     }
 
 
-    private async Task LeaveLobby()
+    public async Task LeaveLobby()
     {
         if (_hubConnection is null) return;
 
@@ -381,7 +381,7 @@
         }
     }
 
-    private void CardHandler(int cardIndex)
+    public void CardHandler(int cardIndex)
     {
         _warning = false;
         if (_comboHand.Contains(cardIndex))
@@ -392,7 +392,7 @@
             _comboHand.Add(cardIndex);
     }
 
-    private void SelectPlayer(Player player)
+    public void SelectPlayer(Player player)
     {
         _warning = false;
         if (_currentPlayerId != _currentGame!.CurrentPlayer)
@@ -402,7 +402,7 @@
         else
             _selectedPlayer = player;
     }
-    private async Task DoMovePlayer()
+    public async Task DoMovePlayer()
     {
         if (_hubConnection is null) return;
 

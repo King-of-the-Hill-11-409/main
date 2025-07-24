@@ -340,18 +340,50 @@ namespace KingOfTheHill.Hubs
         /// <param name="card">Card</param>
         /// <param name="targetPlayer">Target player</param>
         /// <returns></returns>
-        public async Task UseCardAttachedToPlayer(ICard card, Player? targetPlayer = null)
+        public async Task UseCardAttachedToPlayer(int cardIndex, Player? targetPlayer = null)
         {
             var (game, player) = GetCurrentGameAndPlayer();
             targetPlayer ??= player;
 
-            if (game == null || targetPlayer == null) return;
+            if (game == null || targetPlayer == null || player == null) return;
 
             _logger.LogInformation($"The player {Context.ConnectionId} is using the card attached to player {targetPlayer.ConnectionId}");
 
             try
             {
-                _gameProvider.UseCardAttachedToPlayer(card, ref targetPlayer);
+                ICard card = player.Deck[cardIndex];
+                var updatedPlayer = new Player()
+                {
+                    ConnectionId = player.ConnectionId,
+                    Id = player.Id,
+                    GameId = player.GameId,
+                    isFreezed = player.isFreezed,
+                    isSkipTurn = player.isSkipTurn,
+                    Name = player.Name,
+                    Deck = [.. player.Deck.Where(c => c != card)],
+                    Score = player.Score,
+                    HasCombo = player.HasCombo,
+                };
+
+                switch (card)
+                {
+                    case PositiveCard positiveCard:
+                        updatedPlayer.Score = positiveCard.Invoke(updatedPlayer);
+                        break;
+                    case NegativeCard negativeCard:
+                        int Score = negativeCard.Invoke(targetPlayer);
+                        targetPlayer.Score = Score < 0 ? targetPlayer.Score : Score;
+                        break;
+                    case BonusCard bonusCard:
+                        updatedPlayer.Score = bonusCard.Invoke(updatedPlayer);
+                        break;
+                }
+
+                game.Players[game.Players.FindIndex(p => p.Id == updatedPlayer.Id)] = updatedPlayer;
+                if (targetPlayer.Id != player.Id)
+                    game.Players[game.Players.FindIndex(p => p.Id == targetPlayer.Id)] = targetPlayer;
+                _games[game.GameID] = game;
+                
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangePlayerState", targetPlayer);
             }
             catch (Exception ex)

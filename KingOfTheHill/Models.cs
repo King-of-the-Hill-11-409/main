@@ -52,7 +52,8 @@ public class GameProvider : IGameProvider // ToDo
             direction = game.direction,
             CurrentPlayer = game.CurrentPlayer,
             time = game.time,
-            Players = game.Players
+            Players = game.Players,
+            isStarted = game.isStarted,
         };
     }
 
@@ -89,14 +90,15 @@ public class GameProvider : IGameProvider // ToDo
                 p.Score = positiveCard.Invoke(p);
                 break;
             case NegativeCard negativeCard:
-                p.Score = negativeCard.Invoke(p);
+                int Score = negativeCard.Invoke(p);
+                p.Score = Score < 0 ? p.Score : Score;
                 break;
             case BonusCard bonusCard:
                 p.Score = bonusCard.Invoke(p);
                 break;
         }
 
-        p = new Player()
+        p = new()
         {
             ConnectionId = p.ConnectionId,
             Id = p.Id,
@@ -135,7 +137,24 @@ public class Player
     public bool HasCombo { get; set; } = false;
 }
 
-public class ICard;
+public class ICard
+{
+    public Guid Id = Guid.NewGuid();
+
+    public override bool Equals(object? obj)
+    {
+        if (obj == null || GetType() != obj.GetType())
+            return false;
+
+        var other = (ICard)obj;
+        return Id == other.Id;
+    }
+
+    public override int GetHashCode()
+    {
+        return Id.GetHashCode();
+    }
+}
 
 
 public class PositiveCard(int value) : ICard
@@ -205,7 +224,7 @@ public class Game
 
     public bool isStarted { get; set; } = false;
 
-    public Direction direction { get; set; } = Direction.Left;
+    public Direction direction { get; set; } = Direction.Right;
 
     public Guid CurrentPlayer { get; set; }
 

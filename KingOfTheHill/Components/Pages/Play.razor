@@ -13,9 +13,13 @@
     <div class="top__players">
         @foreach (var player in _currentGame.Players)
         {
-            @if (player.Id != _currentGame.CurrentPlayer)
+            @if (player.Id != _currentPlayerId)
             {
-                <div class="player__block">
+                <div 
+                    @onclick="(() => SelectPlayer(player))" 
+                    class="player__block @(_selectedPlayer is not null && _selectedPlayer.Id == player.Id
+                    ? "player__selected" : "")"
+                >
                     <h4 class="player__name">@player.Name</h4>
                     <div class="player__avatar">👨🏿‍🦽</div>
                     <div class="player__cards">
@@ -32,33 +36,72 @@
     </div>
 
     <div class="player__hand">
-        @foreach (var card in _currentPlayer!.Deck)
+        @foreach (var (card, i) in _currentPlayer!.Deck.Select((item, i) => (item, i)))
         {
             @if (card is PositiveCard pCard)
             {
-                <div class="hand__card">
+                <button 
+                    disabled="@(_currentGame.CurrentPlayer != _currentPlayerId)" 
+                    @onclick="@(() => CardHandler(i))" 
+                    class="hand__card @(_comboHand.Contains(i) ? "inHand": "")"
+                >
                     <img src="images/Positive_@(pCard.Value).png"/>
-                </div>
+                </button>
             } else if (card is NegativeCard nCard)
             {
-                <div class="hand__card">
+                <button 
+                    disabled="@(_currentGame.CurrentPlayer != _currentPlayerId)" 
+                    @onclick="@(() => CardHandler(i))" 
+                    class="hand__card @(_comboHand.Contains(i) ? "inHand": "")"
+                >
                     <img src="images/Negative_@(nCard.Value).png"/>
-                </div>
+                </button>
             } else if (card is SpecialCard sCard)
             {
                 @if (sCard.Value == SpecialCommand.Silence)
                 {
-                    <div class="hand__card">
+                    <button 
+                        disabled="@(_currentGame.CurrentPlayer != _currentPlayerId)" 
+                        @onclick="@(() => CardHandler(i))" class="hand__card 
+                        @(_comboHand.Contains(i) ? "inHand": "")"
+                    >
                         <img src="images/Block.png"/>
-                    </div>
+                    </button>
                 } else if (sCard.Value == SpecialCommand.ChangeMove)
                 {
-                    <div class="hand__card">
+                    <button 
+                        disabled="@(_currentGame.CurrentPlayer != _currentPlayerId)" 
+                        @onclick="@(() => CardHandler(i))" 
+                        class="hand__card @(_comboHand.Contains(i) ? "inHand": "")"
+                    >
                         <img src="images/Reverse.png"/>
-                    </div>
+                    </button>
                 }
+            } else if (card is BonusCard bCard)
+            {
+                <button 
+                    disabled="@(_currentGame.CurrentPlayer != _currentPlayerId)" 
+                    @onclick="@(() => CardHandler(i))" 
+                    class="hand__card @(_comboHand.Contains(i) ? "inHand": "")"
+                >
+                    <img src="images/Bonus.png"/>
+                </button>
             }
         }
+    </div>
+    <div class="playButton__card">
+        <button @onclick="@(() => DoMovePlayer())" disabled="@(_comboHand.Count == 0 || _comboHand.Count == 2)">
+            @(_comboHand.Count <= 1 ? "Разыграть карту" : "Разыграть карты")
+        </button>
+        @if (_warning)
+        {
+            <p>Вы должны указать на кого применить данную карту или комбинацию</p>
+        }
+    </div>
+    <div class="player__move">
+        @(_currentGame.CurrentPlayer == _currentPlayerId 
+        ? "Сейчас ходите Вы"
+        : $"Ход игрока: {_currentGame.Players.Find(p => p.Id == _currentGame.CurrentPlayer)!.Name}")
     </div>
     <div class="bottom__panel">
         <div class="haveCombo__panel">Есть ли у вас комбо: @(_currentPlayer.HasCombo ? "Да!" : "Нет😢")</div>
@@ -141,6 +184,9 @@
     private int displayTime = 60;
     private Guid? _currentPlayerId;
     private Player? _currentPlayer;
+    private List<int> _comboHand = [];
+    private Player? _selectedPlayer;
+    private bool _warning = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -166,7 +212,6 @@
 
         try
         {
-            Console.WriteLine("Aboba");
             await _hubConnection.StartAsync();
         }
         catch (Exception)
@@ -245,6 +290,19 @@
             Lobbies?.Remove(gameId);
             InvokeAsync(StateHasChanged);
         });
+
+        _hubConnection.On<Player>("ChangePlayerState", player => 
+        {
+            if (player.Id == _currentPlayerId)
+                _currentPlayer = player;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _hubConnection.On<Game>("ChangeGameState", game => 
+        {
+            _currentGame = game;
+            InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task RefreshLobbies()
@@ -288,6 +346,7 @@
         }
         catch (Exception ex)
         {
+            Console.WriteLine("Exeption on client side on CreateLobby", ex);
         }
     }
 
@@ -307,5 +366,79 @@
         }
     }
 
-    @* private async Task  *@
+    private void CardHandler(int cardIndex)
+    {
+        _warning = false;
+        if (_comboHand.Contains(cardIndex))
+            _comboHand.Remove(cardIndex);
+        else if (_comboHand.Count == 3)
+            return;
+        else
+            _comboHand.Add(cardIndex);
+    }
+
+    private void SelectPlayer(Player player)
+    {
+        _warning = false;
+        if (_currentPlayerId != _currentGame!.CurrentPlayer)
+            return;
+        if (_selectedPlayer is not null && _selectedPlayer.Id == player.Id)
+            _selectedPlayer = null;
+        else
+            _selectedPlayer = player;
+    }
+    private async Task DoMovePlayer()
+    {
+        if (_hubConnection is null) return;
+
+        if (_comboHand.Count == 1)
+        {
+            int cardIndex = _comboHand[0];
+            ICard card = _currentPlayer!.Deck[cardIndex];
+            if (card is SpecialCard sCard)
+            {
+                try
+                {
+                    await _hubConnection.SendAsync("UseCardAttachedToGame", cardIndex);
+                } catch (Exception ex)
+                {
+                    Console.WriteLine("Exeption on client side on DoMovePlayer UseCardAttachedToGame", ex);
+                }
+            } else
+            {
+                if (_selectedPlayer is null && card is NegativeCard)
+                {
+                    _warning = true;
+                    return;
+                } else if (_selectedPlayer is not null && card is not NegativeCard)
+                    _selectedPlayer = null;
+                try
+                {
+                    await _hubConnection.SendAsync("UseCardAttachedToPlayer", cardIndex, _selectedPlayer);
+                } catch (Exception ex)
+                {
+                    Console.WriteLine("Exeption on client side on DoMovePlayer UseCardAttachedToPlayer", ex);
+                }
+                _selectedPlayer = null;
+            }
+            _comboHand.Remove(cardIndex);
+        }
+
+        try
+        {
+            await _hubConnection.SendAsync("DrawCard");
+        } catch (Exception ex)
+        {
+            Console.WriteLine("Exeption on client side on DoMovePlayer DrawCard", ex);
+        }
+
+        try
+        {
+            await _hubConnection.SendAsync("EndMove");
+        } catch (Exception ex)
+        {
+            Console.WriteLine("Exeption on client side on DoMovePlayer EndMove", ex);
+        }
+
+    }
 }

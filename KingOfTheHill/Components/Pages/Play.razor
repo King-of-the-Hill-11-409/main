@@ -5,6 +5,7 @@
 @using Newtonsoft.Json
 @using Newtonsoft.Json.Serialization
 @using static KingOfTheHill.IGameProvider
+@implements IAsyncDisposable
 @inject NavigationManager NavigationManager
 
 <div class="logo__backgorund"></div>
@@ -32,6 +33,12 @@
                             </div>
                         }
                     </div>
+                    @if (_seeAllScore)
+                    {
+                        <div class="player__score">
+                            Счёт игрока: @player.Score
+                        </div>
+                    }
                 </div>
             }
         }
@@ -99,7 +106,34 @@
         {
             <p>Вы должны указать на кого применить данную карту или комбинацию</p>
         }
+        @if (_isSkipped)
+        {
+            <p>Вам запретили ходить!🤬</p>
+        }
+        @if (_isNotComb)
+        {
+            <p>Не подходящая комбинация</p>
+        }
     </div>
+    @if (_currentPlayer.HasCombo)
+    {
+        <div class="combo__menu">
+            <div class="combo__list">
+                <div @onclick='(() => ComboHandler("SeeScore"))' class="combo__seeScore @(_cardComb == "SeeScore" ? _cardComb : "")">
+                    <img src="images/SeeScore.png"/>
+                </div>
+            </div>
+
+            @if (_seeInformation)
+            {
+                <div class="informationCombo">
+                    <p>@_informationCombo</p>
+                </div>
+                <button @onclick="(() => ComboActionActivate())">Активировать</button>
+            }
+        </div>
+        <div class="overlay"></div>
+    }
     <div class="player__move">
         @(_currentGame.CurrentPlayer == _currentPlayerId 
         ? "Сейчас ходите Вы"
@@ -122,7 +156,13 @@
 
     <div class="lobby__container">
         <div class="input__block">
-            <input disabled=@(_currentGame is not null) placeholder="Введите Ваш никнейм" @bind="@Username"/>
+            <input
+                id="username"
+                name="Username" 
+                disabled=@(_currentGame is not null) 
+                placeholder="Введите Ваш никнейм" 
+                @bind="@Username"
+            />
         </div>
 
         <div class="lobbies">
@@ -135,7 +175,7 @@
                     <div class="list__lobby">
                     @foreach (var (item, i) in Lobbies.Select((value, index) => (value, index)))
                     {
-                            <div @key="item.Key">
+                            <div>
                                 <p>@(i + 1)</p>
                                 <p>@(item.Value.Players.Count)/4</p>
                                 <p>@item.Value.isStarted</p>
@@ -190,6 +230,11 @@
     private Player? _selectedPlayer;
     private bool _warning = false;
     private bool _isSkipped = false;
+    private bool _isNotComb = false;
+    private string _informationCombo = "";
+    private bool _seeInformation = false;
+    private bool _seeAllScore = false;
+    private string _cardComb = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -217,9 +262,9 @@
         {
             await _hubConnection.StartAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-
+            Console.WriteLine("Exeption on client side on OnInitializedAsync", ex);
         }
 
         _hubConnection.On<Game>("JoinGameLobby", (game) =>
@@ -240,7 +285,6 @@
             _isTimerVisible = true;
             displayTime = seconds;
             InvokeAsync(StateHasChanged);
-
         });
 
         _hubConnection.On("TimerWasStarted", () =>
@@ -383,7 +427,10 @@
 
     private void CardHandler(int cardIndex)
     {
+        _seeAllScore = false;
         _warning = false;
+        _isSkipped = false;
+        _isNotComb = false;
         if (_comboHand.Contains(cardIndex))
             _comboHand.Remove(cardIndex);
         else if (_comboHand.Count == 3)
@@ -395,6 +442,8 @@
     private void SelectPlayer(Player player)
     {
         _warning = false;
+        _isSkipped = false;
+        _isNotComb = false;
         if (_currentPlayerId != _currentGame!.CurrentPlayer)
             return;
         if (_selectedPlayer is not null && _selectedPlayer.Id == player.Id)
@@ -437,6 +486,103 @@
                 _selectedPlayer = null;
             }
             _comboHand.Remove(cardIndex);
+        } else if (_comboHand.Count == 3)
+        {
+            List<ICard> inHand = [];
+            for (int i = 0; i < _comboHand.Count; i++)
+                inHand.Add(_currentPlayer!.Deck[_comboHand[i]]);
+
+            bool allPositive = inHand.All(card => card is PositiveCard);
+            bool allNegative = inHand.All(card => card is NegativeCard);
+
+            if (!allPositive && !allNegative)
+            {
+                _isNotComb = true;
+                return;
+            }
+
+            if (allPositive)
+            {
+                var positiveCards = inHand.Cast<PositiveCard>().ToArray();
+                if (!positiveCards.All(c => c.Value == positiveCards[0].Value))
+                {
+                    _isNotComb = true;
+                    return;
+                }
+            }
+
+            if (allNegative)
+            {
+                var negativeCards = inHand.Cast<NegativeCard>().ToArray();
+                if (!negativeCards.All(c => c.Value == negativeCards[0].Value))
+                {
+                    _isNotComb = true;
+                    return;
+                }
+
+                if (_selectedPlayer == null)
+                {
+                    _warning = true;
+                    return;
+                }
+            }
+
+            try
+            {
+                await _hubConnection.SendAsync("UseComboAttachedToPlayer", _comboHand, _selectedPlayer);
+            } catch (Exception ex)
+            {
+                Console.WriteLine("Exeption on client side on DoMovePlayer UseComboAttachedToPlayer", ex);
+            }
+            _comboHand = [];
+        }
+    }
+
+    private void ComboHandler(string action)
+    {
+        if (_seeInformation)
+        {
+            _seeInformation = false;
+            _cardComb = "";
+            return;
+        }
+
+        if (action == "SeeScore")
+        {
+            _informationCombo = "Позволяет увидеть счёт всех игроков. Действует до следующего Вашего хода";
+            _seeInformation = true;
+            _cardComb = action;
+        }
+    }
+
+    public async Task ComboActionActivate()
+    {
+        if (_hubConnection is null) return;
+
+        _seeAllScore = true;
+
+        try
+        {
+            await _hubConnection.SendAsync("EndMove");
+        } catch (Exception ex)
+        {
+            Console.WriteLine("Exeption on client side on ComboActionActivate EndMove", ex);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection == null) return;
+
+        Console.WriteLine("Hello From DisposeAsync on Client Side");
+
+        try
+        {
+            await _hubConnection.StopAsync();
+        }
+        finally
+        {
+            await _hubConnection.DisposeAsync();
         }
     }
 }

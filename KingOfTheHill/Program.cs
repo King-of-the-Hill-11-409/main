@@ -13,8 +13,8 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddSignalR(options =>
     {
-        options.ClientTimeoutInterval = TimeSpan.FromSeconds(1);
-        options.KeepAliveInterval = TimeSpan.FromSeconds(1); // Пинги каждые 5 сек
+        options.ClientTimeoutInterval = TimeSpan.FromSeconds(4);
+        options.KeepAliveInterval = TimeSpan.FromSeconds(2); // Пинги каждые 5 сек
     })
     .AddNewtonsoftJsonProtocol(options =>
     {

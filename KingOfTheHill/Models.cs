@@ -14,21 +14,13 @@ public class GameProvider : IGameProvider // ToDo
 {
     public void DrawCard(ref Player player)
     {
-        for (int i = player.Deck.Count; i < 6; i++)
-            player.Deck.Add(CardDeck.DrawRandomCard());
-
-        player = new Player()
-        {
-            ConnectionId = player.ConnectionId,
-            Id = player.Id,
-            GameId = player.GameId,
-            isFreezed = player.isFreezed,
-            isSkipTurn = player.isSkipTurn,
-            Name = player.Name,
-            Deck = player.Deck,
-            Score = player.Score,
-            HasCombo = player.HasCombo,
-        };
+        // for (int i = player.Deck.Count; i < 6; i++)
+        player.Deck.Add(new PositiveCard(2));
+        player.Deck.Add(new PositiveCard(2));
+        player.Deck.Add(new PositiveCard(2));
+        player.Deck.Add(new NegativeCard(2));
+        player.Deck.Add(new NegativeCard(2));
+        player.Deck.Add(new NegativeCard(2));
     }
 
     public void PassTheMove(ref Game game)

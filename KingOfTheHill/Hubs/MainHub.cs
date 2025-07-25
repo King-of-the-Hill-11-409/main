@@ -28,9 +28,15 @@ namespace KingOfTheHill.Hubs
             _logger.LogInformation($"The user {Context.ConnectionId} was disconnected");
 
             var connectionId = Context.ConnectionId;
-            var gameId = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value.GameID;
-
-            await LeaveGameAsync(gameId);
+            try
+            {
+                var gameId = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value.GameID;
+                await LeaveGameAsync(gameId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation($"Blazor Bug {ex}");
+            }
 
             await base.OnDisconnectedAsync(exception);
 
@@ -324,7 +330,8 @@ namespace KingOfTheHill.Hubs
             try
             {
                 player.isSkipTurn = false;
-                
+                player.HasCombo = false;
+
                 _gameProvider.PassTheMove(ref game);
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
             }
@@ -355,6 +362,7 @@ namespace KingOfTheHill.Hubs
             {
                 ICard card = player.Deck[cardIndex];
                 player.Deck = [.. player.Deck.Where(c => c != card)];
+                player.HasCombo = false;
 
                 switch (card)
                 {
@@ -380,6 +388,48 @@ namespace KingOfTheHill.Hubs
             {
                 _logger.LogError(ex, "UseCardAttachedToPlayerError");
                 await Clients.Caller.SendAsync("Error", "Failed to use card");
+            }
+        }
+
+        public async Task UseComboAttachedToPlayer(List<int> cardsIndex, Player? targetPlayer = null)
+        {
+            var (game, player) = GetCurrentGameAndPlayer();
+            targetPlayer ??= player;
+
+            if (game == null || targetPlayer == null || player == null) return;
+
+            _logger.LogInformation($"The player {Context.ConnectionId} is using the card attached to player {targetPlayer.ConnectionId}");
+
+            try
+            {
+                List<ICard> cards = [.. cardsIndex.Select(c => player.Deck[c])];
+                player.Deck = [.. player.Deck.Where((_, i) => !cardsIndex.Contains(i))];
+                player.HasCombo = true;
+
+                foreach (var card in cards)
+                {
+                    switch (card)
+                    {
+                        case PositiveCard positiveCard:
+                            player.Score = positiveCard.Invoke(player);
+                            break;
+                        case NegativeCard negativeCard:
+                            int Score = negativeCard.Invoke(targetPlayer);
+                            targetPlayer.Score = Score < 0 ? targetPlayer.Score : Score;
+                            break;
+                    }
+                }
+
+                if (targetPlayer.Id != player.Id)
+                    game.Players[game.Players.FindIndex(p => p.Id == targetPlayer.Id)] = targetPlayer;
+
+                await DrawCard();
+                await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "UseComboAttachedToPlayerError");
+                await Clients.Caller.SendAsync("Error", "Failed to use combo");
             }
         }
 

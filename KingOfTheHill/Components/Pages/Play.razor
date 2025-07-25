@@ -132,7 +132,21 @@
                 <button @onclick="(() => ComboActionActivate())">Активировать</button>
             }
         </div>
+    }
+    @if (_currentPlayer.HasCombo || _winner != null)
+    {
         <div class="overlay"></div>
+    }
+    @if (_winner != null)
+    {
+        <div class="winner__block">
+            <div class="winner__message">
+                <p>@(_currentPlayer.Id == _winner.Id ? "Вы выиграли!👾" : $"Выиграл игрок: {_winner.Name}🤢")</p>
+            </div>
+            <div class="exit__block">
+                <button class="exit__button" @onclick="@(() => LeaveLobby())">Выйти из игры</button>
+            </div>
+        </div>
     }
     <div class="player__move">
         @(_currentGame.CurrentPlayer == _currentPlayerId 
@@ -179,7 +193,11 @@
                                 <p>@(i + 1)</p>
                                 <p>@(item.Value.Players.Count)/4</p>
                                 <p>@item.Value.isStarted</p>
-                                <button disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null || item.Value.Players.Count == 4) @onclick="@(() => JoinLobby(item.Value.GameID))">Подключиться</button>
+                                <button 
+                                    disabled=@(string.IsNullOrWhiteSpace(Username) || _currentGame is not null || item.Value.Players.Count == 4 || item.Value.isStarted) 
+                                    @onclick="@(() => JoinLobby(item.Value.GameID))">
+                                        Подключиться
+                                </button>
                             </div>
                     }
                     </div>
@@ -204,7 +222,7 @@
                     </div>
                     <div class="menu__other">
                         <div class="menu__timer @(_isTimerVisible ? "visible": "hidden")">@displayTime</div>
-                        <button @onclick="@(() => LeaveLobby())">Выйти из игры</button>
+                        <button class="exit__button" @onclick="@(() => LeaveLobby())">Выйти из игры</button>
                     </div>
                 </div>
             }
@@ -235,6 +253,7 @@
     private bool _seeInformation = false;
     private bool _seeAllScore = false;
     private string _cardComb = "";
+    private Player? _winner;
 
     protected override async Task OnInitializedAsync()
     {
@@ -362,6 +381,12 @@
             }
             InvokeAsync(StateHasChanged);
         });
+
+        _hubConnection.On<Game>("FinishGame", game => 
+        {
+            _winner = game.Players.Find(p => p.Score >= game.MaxScore);
+            InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task RefreshLobbies()
@@ -413,6 +438,10 @@
     private async Task LeaveLobby()
     {
         if (_hubConnection is null) return;
+
+        _currentGame.isStarted = false;
+        _winner = null;
+        _currentPlayer = null;
 
         try
         {

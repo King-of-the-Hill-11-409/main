@@ -205,7 +205,7 @@ public static class CardDeck
 
 public class Game
 {
-    public int MaxScore { get; set; } = 300;
+    public int MaxScore { get; set; } = 20;
 
     public Guid GameID { get; set; } = Guid.NewGuid();
 

@@ -380,7 +380,20 @@ namespace KingOfTheHill.Hubs
 
                 if (targetPlayer.Id != player.Id)
                     game.Players[game.Players.FindIndex(p => p.Id == targetPlayer.Id)] = targetPlayer;
-                
+
+                if (player.Score >= game.MaxScore)
+                {
+                    try
+                    {
+                        await Clients.Group(game.GameID.ToString()).SendAsync("FinishGame", game);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "UseCardAttachedToPlayerError");
+                    }
+                }
+
                 await DrawCard();
                 await EndMove();
             }
@@ -422,6 +435,19 @@ namespace KingOfTheHill.Hubs
 
                 if (targetPlayer.Id != player.Id)
                     game.Players[game.Players.FindIndex(p => p.Id == targetPlayer.Id)] = targetPlayer;
+
+                if (player.Score >= game.MaxScore)
+                {
+                    try
+                    {
+                        await Clients.Group(game.GameID.ToString()).SendAsync("FinishGame", game);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "UseCardAttachedToPlayerError");
+                    }
+                }
 
                 await DrawCard();
                 await Clients.Group(game.GameID.ToString()).SendAsync("ChangeGameState", game);

@@ -25,21 +25,19 @@ namespace KingOfTheHill.Hubs
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            _logger.LogInformation($"The user {Context.ConnectionId} was disconnected");
-
-            var connectionId = Context.ConnectionId;
-            try
-            {
-                var gameId = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value.GameID;
-                await LeaveGameAsync(gameId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogInformation($"Blazor Bug {ex}");
-            }
-
             await base.OnDisconnectedAsync(exception);
 
+            var connectionId = Context.ConnectionId;
+
+            var game = _games.FirstOrDefault(pair => pair.Value.Players.Any(p => p.ConnectionId == Context.ConnectionId)).Value;
+
+            if (game == null)
+                return;
+
+            var gameId = game.GameID;
+            await LeaveGameAsync(gameId);
+            
+            _logger.LogInformation($"The user {Context.ConnectionId} was disconnected");
         }
 
         /// <summary>

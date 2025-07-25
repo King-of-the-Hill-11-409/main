@@ -14,13 +14,8 @@ public class GameProvider : IGameProvider // ToDo
 {
     public void DrawCard(ref Player player)
     {
-        // for (int i = player.Deck.Count; i < 6; i++)
-        player.Deck.Add(new PositiveCard(2));
-        player.Deck.Add(new PositiveCard(2));
-        player.Deck.Add(new PositiveCard(2));
-        player.Deck.Add(new NegativeCard(2));
-        player.Deck.Add(new NegativeCard(2));
-        player.Deck.Add(new NegativeCard(2));
+        for (int i = player.Deck.Count; i < 6; i++)
+            player.Deck.Add(CardDeck.DrawRandomCard());
     }
 
     public void PassTheMove(ref Game game)

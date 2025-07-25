@@ -11,11 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddSignalR(options =>
-    {
-        options.ClientTimeoutInterval = TimeSpan.FromSeconds(4);
-        options.KeepAliveInterval = TimeSpan.FromSeconds(2); // Пинги каждые 5 сек
-    })
+builder.Services.AddSignalR()
     .AddNewtonsoftJsonProtocol(options =>
     {
         options.PayloadSerializerSettings = new JsonSerializerSettings
@@ -32,6 +28,16 @@ builder.Services.AddSignalR(options =>
         };
     });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddSingleton<ILogger, Logger<string>>();
 builder.Services.AddSingleton<IGameProvider, GameProvider>();
 builder.Services.AddTransient<GameTimerService>();
@@ -46,6 +52,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseCors("AllowAll");
+
 app.MapHub<MainHub>("/gamehub");
 
 app.UseHttpsRedirection();
@@ -56,4 +64,4 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-app.Run();
+app.Run("http://0.0.0.0:5000");
